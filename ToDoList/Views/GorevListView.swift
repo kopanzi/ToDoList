@@ -1,90 +1,107 @@
 import SwiftUI
 
-// 1. ADIM: Sadece yazı değil, detaylı bir "Görev" modeli oluşturuyoruz.
-struct GorevModeli: Identifiable {
-    let id = UUID() // Her görevin benzersiz bir kimliği olur
-    var baslik: String
-    var tamamlandi: Bool = false // Başlangıçta tamamlanmamış olsun
-}
-
-struct ContentView: View {
-    // String listesi yerine artık kendi modelimizin listesini tutuyoruz
-    @State private var gorevler = [
-        GorevModeli(baslik: "SwiftUI Öğren"),
-        GorevModeli(baslik: "Spor Yap", tamamlandi: true), // Örnek dolu gelsin
-        GorevModeli(baslik: "Kahve İç")
-    ]
-    @State private var yeniGorev = ""
+struct GorevListView: View {
+    @StateObject private var viewModel = GorevViewModel()
+    
+    @State private var yeniGorevBaslik = ""
+    @State private var secilenOnem: OnemDerecesi = .orta
+    @State private var secilenTarih = Date()
 
     var body: some View {
-        VStack {
-            Text("Pro Planlayıcı")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundStyle(.indigo)
-                .padding(.top)
-
-            // Ekleme Kısmı (Tasarımı güzelleştirdik)
-            HStack {
-                TextField("Bugün ne yapacaksın?", text: $yeniGorev)
-                    .padding()
-                    .background(Color.gray.opacity(0.1))
-                    .cornerRadius(10)
-                
-                Button(action: gorevEkle) {
-                    Image(systemName: "plus")
-                        .font(.title2)
-                        .padding()
-                        .background(Color.indigo)
-                        .foregroundColor(.white)
-                        .clipShape(Circle())
-                }
-                .disabled(yeniGorev.isEmpty) // Boşsa buton çalışmasın
-            }
-            .padding()
-
-            // Liste Kısmı
-            List {
-                ForEach($gorevler) { $gorev in // $ işareti veriyi değiştirebilmek için
+        NavigationStack {
+            VStack {
+                // --- EKLEME ALANI ---
+                VStack(spacing: 12) {
+                    TextField("Bugün ne yapacaksın?", text: $yeniGorevBaslik)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.horizontal)
+                    
                     HStack {
-                        // Tıklanabilir İkon
-                        Image(systemName: gorev.tamamlandi ? "checkmark.circle.fill" : "circle")
-                            .foregroundColor(gorev.tamamlandi ? .green : .gray)
-                            .font(.title2)
-                            .onTapGesture {
-                                // Animasyonlu geçiş
-                                withAnimation {
-                                    gorev.tamamlandi.toggle()
+                        DatePicker("", selection: $secilenTarih)
+                            .labelsHidden()
+                        
+                        Picker("Önem", selection: $secilenOnem) {
+                            ForEach(OnemDerecesi.allCases, id: \.self) { onem in
+                                Text(onem.rawValue).tag(onem)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        
+                        Spacer()
+                        
+                        Button(action: gorevEkle) {
+                            Text("Ekle")
+                                .bold()
+                                .frame(width: 70, height: 30)
+                                .background(yeniGorevBaslik.isEmpty ? Color.gray : Color.indigo)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                        }
+                        .disabled(yeniGorevBaslik.isEmpty)
+                    }
+                    .padding(.horizontal)
+                }
+                .padding(.vertical)
+                .background(Color.gray.opacity(0.1))
+                
+                // --- LİSTE ALANI ---
+                List {
+                    ForEach(viewModel.gorevler) { gorev in
+                        // Detay sayfasına giderken viewModel'i de gönderiyoruz
+                        NavigationLink(destination: GorevDetayView(gorev: gorev, viewModel: viewModel)) {
+                            HStack {
+                                Image(systemName: gorev.tamamlandi ? "checkmark.circle.fill" : "circle")
+                                    .foregroundColor(gorev.tamamlandi ? .green : .gray)
+                                    .onTapGesture {
+                                        viewModel.durumDegistir(gorev: gorev)
+                                    }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(gorev.baslik)
+                                        .strikethrough(gorev.tamamlandi)
+                                        .foregroundColor(gorev.tamamlandi ? .gray : .primary)
+                                    
+                                    HStack {
+                                        Text(gorev.onem.rawValue)
+                                            .font(.caption)
+                                            .padding(4)
+                                            .background(gorev.onem.renk.opacity(0.2))
+                                            .foregroundColor(gorev.onem.renk)
+                                            .cornerRadius(4)
+                                        
+                                        Text(gorev.tarih.formatted(date: .abbreviated, time: .shortened))
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
                                 }
                             }
-                        
-                        // Görev Yazısı
-                        Text(gorev.baslik)
-                            .strikethrough(gorev.tamamlandi) // Tamamlandıysa üstünü çiz
-                            .foregroundColor(gorev.tamamlandi ? .gray : .primary)
+                        }
                     }
-                    .padding(.vertical, 4)
+                    .onDelete(perform: viewModel.gorevSil)
                 }
-                .onDelete(perform: silmeIslemi)
+                .listStyle(.plain)
             }
-            .listStyle(.plain) // Daha temiz bir görünüm
+            .navigationTitle("Yapılacaklar")
+            // ✅ YENİ EKLENEN KISIM: İstatistik Butonu
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(destination: IstatistikView(viewModel: viewModel)) {
+                        Image(systemName: "chart.pie.fill") // Grafik ikonu
+                            .foregroundColor(.indigo)
+                    }
+                }
+            }
         }
     }
     
     func gorevEkle() {
-        let yeni = GorevModeli(baslik: yeniGorev)
-        withAnimation {
-            gorevler.append(yeni)
-        }
-        yeniGorev = ""
-    }
-    
-    func silmeIslemi(at offsets: IndexSet) {
-        withAnimation {
-            gorevler.remove(atOffsets: offsets)
-        }
+        viewModel.gorevEkle(baslik: yeniGorevBaslik, onem: secilenOnem, tarih: secilenTarih)
+        yeniGorevBaslik = ""
+        secilenOnem = .orta
+        secilenTarih = Date()
     }
 }
 
 #Preview {
-    ContentView()
+    GorevListView()
 }
