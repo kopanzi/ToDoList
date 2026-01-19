@@ -6,33 +6,126 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		179F75582EF35A2300503A7D /* GoogleGenerativeAI in Frameworks */ = {isa = PBXBuildFile; productRef = 179F75572EF35A2300503A7D /* GoogleGenerativeAI */; };
+		17DB2E512F1EC8A5009FF03F /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17DB2E502F1EC8A5009FF03F /* WidgetKit.framework */; };
+		17DB2E532F1EC8A5009FF03F /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 17DB2E522F1EC8A5009FF03F /* SwiftUI.framework */; };
+		17DB2E622F1EC8A6009FF03F /* YaverWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 17DB2E4E2F1EC8A5009FF03F /* YaverWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		17DB2E602F1EC8A6009FF03F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 17F954182EEA1CBD0080A26A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 17DB2E4D2F1EC8A5009FF03F;
+			remoteInfo = YaverWidgetExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		17DB2E672F1EC8A6009FF03F /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				17DB2E622F1EC8A6009FF03F /* YaverWidgetExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		17DB2E4E2F1EC8A5009FF03F /* YaverWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = YaverWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		17DB2E502F1EC8A5009FF03F /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		17DB2E522F1EC8A5009FF03F /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		17DB2E692F1ED17A009FF03F /* YaverWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = YaverWidgetExtension.entitlements; sourceTree = "<group>"; };
 		17F954202EEA1CBE0080A26A /* ToDoList.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ToDoList.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		17DB2E662F1EC8A6009FF03F /* Exceptions for "YaverWidget" folder in "YaverWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 17DB2E4D2F1EC8A5009FF03F /* YaverWidgetExtension */;
+		};
+		17DB2E6B2F1EE6C4009FF03F /* Exceptions for "ToDoList" folder in "YaverWidgetExtension" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Models/GorevModel.swift,
+			);
+			target = 17DB2E4D2F1EC8A5009FF03F /* YaverWidgetExtension */;
+		};
+		17F57F782EF20AB0007CD43C /* Exceptions for "ToDoList" folder in "ToDoList" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 17F9541F2EEA1CBE0080A26A /* ToDoList */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		17DB2E542F1EC8A5009FF03F /* YaverWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				17DB2E662F1EC8A6009FF03F /* Exceptions for "YaverWidget" folder in "YaverWidgetExtension" target */,
+			);
+			path = YaverWidget;
+			sourceTree = "<group>";
+		};
 		17F954222EEA1CBE0080A26A /* ToDoList */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				17F57F782EF20AB0007CD43C /* Exceptions for "ToDoList" folder in "ToDoList" target */,
+				17DB2E6B2F1EE6C4009FF03F /* Exceptions for "ToDoList" folder in "YaverWidgetExtension" target */,
+			);
 			path = ToDoList;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		17DB2E4B2F1EC8A5009FF03F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				17DB2E532F1EC8A5009FF03F /* SwiftUI.framework in Frameworks */,
+				17DB2E512F1EC8A5009FF03F /* WidgetKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17F9541D2EEA1CBE0080A26A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				179F75582EF35A2300503A7D /* GoogleGenerativeAI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		17DB2E4F2F1EC8A5009FF03F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				17DB2E502F1EC8A5009FF03F /* WidgetKit.framework */,
+				17DB2E522F1EC8A5009FF03F /* SwiftUI.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		17F954172EEA1CBD0080A26A = {
 			isa = PBXGroup;
 			children = (
+				17DB2E692F1ED17A009FF03F /* YaverWidgetExtension.entitlements */,
 				17F954222EEA1CBE0080A26A /* ToDoList */,
+				17DB2E542F1EC8A5009FF03F /* YaverWidget */,
+				17DB2E4F2F1EC8A5009FF03F /* Frameworks */,
 				17F954212EEA1CBE0080A26A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -41,6 +134,7 @@
 			isa = PBXGroup;
 			children = (
 				17F954202EEA1CBE0080A26A /* ToDoList.app */,
+				17DB2E4E2F1EC8A5009FF03F /* YaverWidgetExtension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,6 +142,28 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		17DB2E4D2F1EC8A5009FF03F /* YaverWidgetExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 17DB2E632F1EC8A6009FF03F /* Build configuration list for PBXNativeTarget "YaverWidgetExtension" */;
+			buildPhases = (
+				17DB2E4A2F1EC8A5009FF03F /* Sources */,
+				17DB2E4B2F1EC8A5009FF03F /* Frameworks */,
+				17DB2E4C2F1EC8A5009FF03F /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				17DB2E542F1EC8A5009FF03F /* YaverWidget */,
+			);
+			name = YaverWidgetExtension;
+			packageProductDependencies = (
+			);
+			productName = YaverWidgetExtension;
+			productReference = 17DB2E4E2F1EC8A5009FF03F /* YaverWidgetExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		17F9541F2EEA1CBE0080A26A /* ToDoList */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 17F9542B2EEA1CBE0080A26A /* Build configuration list for PBXNativeTarget "ToDoList" */;
@@ -55,16 +171,19 @@
 				17F9541C2EEA1CBE0080A26A /* Sources */,
 				17F9541D2EEA1CBE0080A26A /* Frameworks */,
 				17F9541E2EEA1CBE0080A26A /* Resources */,
+				17DB2E672F1EC8A6009FF03F /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				17DB2E612F1EC8A6009FF03F /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				17F954222EEA1CBE0080A26A /* ToDoList */,
 			);
 			name = ToDoList;
 			packageProductDependencies = (
+				179F75572EF35A2300503A7D /* GoogleGenerativeAI */,
 			);
 			productName = ToDoList;
 			productReference = 17F954202EEA1CBE0080A26A /* ToDoList.app */;
@@ -77,9 +196,12 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2610;
+				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
+					17DB2E4D2F1EC8A5009FF03F = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					17F9541F2EEA1CBE0080A26A = {
 						CreatedOnToolsVersion = 26.1.1;
 					};
@@ -91,20 +213,45 @@
 			knownRegions = (
 				en,
 				Base,
+				ar,
+				"zh-HK",
+				"zh-Hant",
+				nl,
+				fr,
+				hi,
+				de,
+				it,
+				ja,
+				ko,
+				"pt-BR",
+				tr,
+				es,
+				ru,
 			);
 			mainGroup = 17F954172EEA1CBD0080A26A;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				179F75562EF35A2300503A7D /* XCRemoteSwiftPackageReference "generative-ai-swift" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 17F954212EEA1CBE0080A26A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				17F9541F2EEA1CBE0080A26A /* ToDoList */,
+				17DB2E4D2F1EC8A5009FF03F /* YaverWidgetExtension */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		17DB2E4C2F1EC8A5009FF03F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17F9541E2EEA1CBE0080A26A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -115,6 +262,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		17DB2E4A2F1EC8A5009FF03F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		17F9541C2EEA1CBE0080A26A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -124,7 +278,79 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		17DB2E612F1EC8A6009FF03F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 17DB2E4D2F1EC8A5009FF03F /* YaverWidgetExtension */;
+			targetProxy = 17DB2E602F1EC8A6009FF03F /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		17DB2E642F1EC8A6009FF03F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = YaverWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GN374RNLMG;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YaverWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = YaverWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kopanzi.ToDoList.YaverWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		17DB2E652F1EC8A6009FF03F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = YaverWidgetExtension.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GN374RNLMG;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = YaverWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = YaverWidget;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kopanzi.ToDoList.YaverWidget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		17F954292EEA1CBE0080A26A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -184,6 +410,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -240,6 +467,7 @@
 				MTL_FAST_MATH = YES;
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_EMIT_LOC_STRINGS = YES;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
@@ -249,10 +477,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ToDoList/ToDoList.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GN374RNLMG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ToDoList/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Görevlere fotoğraf eklemek için kameraya erişim gerekiyor.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -280,10 +514,16 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = ToDoList/ToDoList.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GN374RNLMG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ToDoList/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_LSApplicationCategoryType = "";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Görevlere fotoğraf eklemek için kameraya erişim gerekiyor.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -309,6 +549,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		17DB2E632F1EC8A6009FF03F /* Build configuration list for PBXNativeTarget "YaverWidgetExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				17DB2E642F1EC8A6009FF03F /* Debug */,
+				17DB2E652F1EC8A6009FF03F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		17F9541B2EEA1CBD0080A26A /* Build configuration list for PBXProject "ToDoList" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -328,6 +577,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		179F75562EF35A2300503A7D /* XCRemoteSwiftPackageReference "generative-ai-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/generative-ai-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.5.6;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		179F75572EF35A2300503A7D /* GoogleGenerativeAI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 179F75562EF35A2300503A7D /* XCRemoteSwiftPackageReference "generative-ai-swift" */;
+			productName = GoogleGenerativeAI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 17F954182EEA1CBD0080A26A /* Project object */;
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Görevlerinizi takvime işlemek için izin gereklidir.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Gizli görevlere erişmek için kimliğinizi doğrulayın.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Görevlere fotoğraf çekip eklemek için kameraya erişim gerekiyor.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Sesli not kaydetmek için mikrofona erişim gerekiyor.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Galeriden fotoğraf seçmek için izin gerekiyor.</string>
+</dict>
+</plist>

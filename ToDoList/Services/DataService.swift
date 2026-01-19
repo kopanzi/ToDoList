@@ -2,31 +2,36 @@ import Foundation
 
 class DataService {
     
-    // Verileri kaydettiğimiz "Kasa Anahtarı"
-    private let kayitAnahtari = "gorevler_listesi"
+    // 🔑 KRİTİK: ViewModel'deki anahtarın AYNISINI kullanıyoruz.
+    // Bunu değiştirirsek eski verilerin ve sihirli değnekle eklediğin notların görünmez!
+    private let kayitAnahtari = "gorev_listesi_v1"
     
     // Verileri Kaydet
     func kaydet(gorevler: [GorevModel]) {
-        // 1. Veriyi JSON'a çevir (Encode)
-        if let encodedData = try? JSONEncoder().encode(gorevler) {
-            // 2. Diske yaz
+        do {
+            let encodedData = try JSONEncoder().encode(gorevler)
             UserDefaults.standard.set(encodedData, forKey: kayitAnahtari)
-            print("Veriler başarıyla kaydedildi! Adet: \(gorevler.count)")
+            // Debug için log (İstersen silebilirsin)
+            print("💾 DataService: \(gorevler.count) görev başarıyla diske yazıldı.")
+        } catch {
+            print("🛑 DataService Kayıt Hatası: \(error.localizedDescription)")
         }
     }
     
     // Verileri Yükle
     func yukle() -> [GorevModel] {
-        // 1. Diskten veriyi oku
         guard let data = UserDefaults.standard.data(forKey: kayitAnahtari) else {
-            return [] // Eğer veri yoksa boş liste dön
+            print("📂 DataService: Kayıtlı veri bulunamadı, boş liste dönülüyor.")
+            return []
         }
         
-        // 2. JSON'u modele çevir (Decode)
-        if let decodedGorevler = try? JSONDecoder().decode([GorevModel].self, from: data) {
+        do {
+            let decodedGorevler = try JSONDecoder().decode([GorevModel].self, from: data)
+            print("📂 DataService: \(decodedGorevler.count) görev yüklendi.")
             return decodedGorevler
+        } catch {
+            print("🛑 DataService Okuma Hatası: \(error.localizedDescription)")
+            return []
         }
-        
-        return []
     }
 }
