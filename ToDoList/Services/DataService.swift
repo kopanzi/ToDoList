@@ -2,35 +2,56 @@ import Foundation
 
 class DataService {
     
-    // 🔑 KRİTİK: ViewModel'deki anahtarın AYNISINI kullanıyoruz.
-    // Bunu değiştirirsek eski verilerin ve sihirli değnekle eklediğin notların görünmez!
-    private let kayitAnahtari = "gorev_listesi_v1"
+    // --- GÖREVLER İÇİN ANAHTAR ---
+    private let gorevKayitAnahtari = "gorev_listesi_v1"
     
-    // Verileri Kaydet
+    // --- NOTLAR İÇİN YENİ ANAHTAR ---
+    private let notKayitAnahtari = "not_listesi_v1"
+    
+    // MARK: - GÖREV İŞLEMLERİ (MEVCUT SİSTEM)
     func kaydet(gorevler: [GorevModel]) {
         do {
             let encodedData = try JSONEncoder().encode(gorevler)
-            UserDefaults.standard.set(encodedData, forKey: kayitAnahtari)
-            // Debug için log (İstersen silebilirsin)
+            UserDefaults.standard.set(encodedData, forKey: gorevKayitAnahtari)
             print("💾 DataService: \(gorevler.count) görev başarıyla diske yazıldı.")
         } catch {
-            print("🛑 DataService Kayıt Hatası: \(error.localizedDescription)")
+            print("🛑 DataService Görev Kayıt Hatası: \(error.localizedDescription)")
         }
     }
     
-    // Verileri Yükle
     func yukle() -> [GorevModel] {
-        guard let data = UserDefaults.standard.data(forKey: kayitAnahtari) else {
-            print("📂 DataService: Kayıtlı veri bulunamadı, boş liste dönülüyor.")
+        guard let data = UserDefaults.standard.data(forKey: gorevKayitAnahtari) else {
             return []
         }
-        
         do {
             let decodedGorevler = try JSONDecoder().decode([GorevModel].self, from: data)
-            print("📂 DataService: \(decodedGorevler.count) görev yüklendi.")
             return decodedGorevler
         } catch {
-            print("🛑 DataService Okuma Hatası: \(error.localizedDescription)")
+            print("🛑 DataService Görev Okuma Hatası: \(error.localizedDescription)")
+            return []
+        }
+    }
+    
+    // MARK: - NOT İŞLEMLERİ (YENİ SİSTEM) 📝
+    func notlariKaydet(notlar: [NotModel]) {
+        do {
+            let encodedData = try JSONEncoder().encode(notlar)
+            UserDefaults.standard.set(encodedData, forKey: notKayitAnahtari)
+            print("💾 DataService: \(notlar.count) not başarıyla diske yazıldı.")
+        } catch {
+            print("🛑 DataService Not Kayıt Hatası: \(error.localizedDescription)")
+        }
+    }
+    
+    func notlariYukle() -> [NotModel] {
+        guard let data = UserDefaults.standard.data(forKey: notKayitAnahtari) else {
+            return []
+        }
+        do {
+            let decodedNotlar = try JSONDecoder().decode([NotModel].self, from: data)
+            return decodedNotlar
+        } catch {
+            print("🛑 DataService Not Okuma Hatası: \(error.localizedDescription)")
             return []
         }
     }

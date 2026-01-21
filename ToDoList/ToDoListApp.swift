@@ -18,7 +18,7 @@ struct ToDoListApp: App {
         WindowGroup {
             ZStack {
                 // 1. ANA UYGULAMA (Altta hazır bekliyor)
-                GorevListView()
+                ContentView()
                     // KRİTİK EKLEME: Seçilen dili bütün sayfalara buradan zorluyoruz!
                     .environment(\.locale, Locale(identifier: secilenDil))
                     // Arapça seçilirse ekranı ters çevir (Sağdan Sola)

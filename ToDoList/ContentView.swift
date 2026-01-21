@@ -1,21 +1,28 @@
-//
-//  ContentView.swift
-//  ToDoList
-//
-//  Created by Furkan Kopan on 11.12.2025.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    // Hangi sekmenin seçili olduğunu tutar (Varsayılan 0: Görevler)
+    @State private var seciliSekme = 0
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView(selection: $seciliSekme) {
+            
+            // 1. SEKME: Senin Mevcut Görev Listen
+            GorevListView()
+                .tabItem {
+                    Label("Görevler", systemImage: "checklist")
+                }
+                .tag(0)
+            
+            // 2. SEKME: Yeni Yaptığımız Not Defteri
+            NotListView()
+                .tabItem {
+                    Label("Notlar", systemImage: "note.text")
+                }
+                .tag(1)
+            
         }
-        .padding()
+        .tint(.blue) // Sekme rengini mavi yapar
     }
 }
 
