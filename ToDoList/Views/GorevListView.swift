@@ -396,7 +396,7 @@ extension String {
         guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else { return (nil, self) }
         let matches = detector.matches(in: self, options: [], range: NSRange(location: 0, length: self.utf16.count))
         if let match = matches.first, let date = match.date, let range = Range(match.range, in: self) {
-            var temizMetin = self.replacingCharacters(in: range, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let temizMetin = self.replacingCharacters(in: range, with: "").trimmingCharacters(in: .whitespacesAndNewlines)
             return (date, temizMetin)
         }
         return (nil, self)

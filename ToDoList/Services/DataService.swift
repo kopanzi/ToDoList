@@ -2,57 +2,54 @@ import Foundation
 
 class DataService {
     
-    // --- GÖREVLER İÇİN ANAHTAR ---
+    // MARK: - Anahtarlar (Keys)
     private let gorevKayitAnahtari = "gorev_listesi_v1"
-    
-    // --- NOTLAR İÇİN YENİ ANAHTAR ---
     private let notKayitAnahtari = "not_listesi_v1"
     
-    // MARK: - GÖREV İŞLEMLERİ (MEVCUT SİSTEM)
-    func kaydet(gorevler: [GorevModel]) {
+    // MARK: - Generic Yardımcı Fonksiyonlar (Clean Code 🌟)
+    // Bu iki fonksiyon, her türlü veriyi (Görev, Not, vs.) kaydetmek için kullanılabilir.
+    
+    private func veriyiKaydet<T: Codable>(items: [T], key: String) {
         do {
-            let encodedData = try JSONEncoder().encode(gorevler)
-            UserDefaults.standard.set(encodedData, forKey: gorevKayitAnahtari)
-            print("💾 DataService: \(gorevler.count) görev başarıyla diske yazıldı.")
+            let data = try JSONEncoder().encode(items)
+            UserDefaults.standard.set(data, forKey: key)
+            print("💾 DataService: \(items.count) öğe (\(key)) başarıyla kaydedildi.")
         } catch {
-            print("🛑 DataService Görev Kayıt Hatası: \(error.localizedDescription)")
+            print("🛑 DataService Kayıt Hatası (\(key)): \(error.localizedDescription)")
         }
+    }
+    
+    private func veriyiYukle<T: Codable>(key: String) -> [T] {
+        guard let data = UserDefaults.standard.data(forKey: key) else {
+            print("📂 DataService: \(key) için veri bulunamadı, boş liste dönülüyor.")
+            return []
+        }
+        do {
+            let items = try JSONDecoder().decode([T].self, from: data)
+            print("📂 DataService: \(items.count) öğe (\(key)) yüklendi.")
+            return items
+        } catch {
+            print("🛑 DataService Okuma Hatası (\(key)): \(error.localizedDescription)")
+            return []
+        }
+    }
+    
+    // MARK: - Görev İşlemleri (Mevcut Yapı Korundu)
+    func kaydet(gorevler: [GorevModel]) {
+        veriyiKaydet(items: gorevler, key: gorevKayitAnahtari)
     }
     
     func yukle() -> [GorevModel] {
-        guard let data = UserDefaults.standard.data(forKey: gorevKayitAnahtari) else {
-            return []
-        }
-        do {
-            let decodedGorevler = try JSONDecoder().decode([GorevModel].self, from: data)
-            return decodedGorevler
-        } catch {
-            print("🛑 DataService Görev Okuma Hatası: \(error.localizedDescription)")
-            return []
-        }
+        return veriyiYukle(key: gorevKayitAnahtari)
     }
     
-    // MARK: - NOT İŞLEMLERİ (YENİ SİSTEM) 📝
+    // MARK: - Not İşlemleri (YENİ ✅)
+    // ViewModel artık bu fonksiyonları kullanacak
     func notlariKaydet(notlar: [NotModel]) {
-        do {
-            let encodedData = try JSONEncoder().encode(notlar)
-            UserDefaults.standard.set(encodedData, forKey: notKayitAnahtari)
-            print("💾 DataService: \(notlar.count) not başarıyla diske yazıldı.")
-        } catch {
-            print("🛑 DataService Not Kayıt Hatası: \(error.localizedDescription)")
-        }
+        veriyiKaydet(items: notlar, key: notKayitAnahtari)
     }
     
     func notlariYukle() -> [NotModel] {
-        guard let data = UserDefaults.standard.data(forKey: notKayitAnahtari) else {
-            return []
-        }
-        do {
-            let decodedNotlar = try JSONDecoder().decode([NotModel].self, from: data)
-            return decodedNotlar
-        } catch {
-            print("🛑 DataService Not Okuma Hatası: \(error.localizedDescription)")
-            return []
-        }
+        return veriyiYukle(key: notKayitAnahtari)
     }
 }
