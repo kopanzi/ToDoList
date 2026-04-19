@@ -1,133 +1,120 @@
 import WidgetKit
 import SwiftUI
 
-// 1. ZAMAN ÇİZELGESİ
+// 1. ZAMAN ÇİZELGESİ GİRDİSİ
+struct SimpleEntry: TimelineEntry {
+    let date: Date
+    let xp: Int
+    let rankName: String
+    let rankIcon: String
+    let tasks: [TaskModel]
+}
+
+// 2. VERİ SAĞLAYICI
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
-        // Önizleme için sahte veri
-        let ornekGorev = GorevModel(baslik: "Örnek Görev", onem: .yuksek, kategori: .isYeri, tarih: Date(), gizliMi: false)
-        return SimpleEntry(date: Date(), xp: 150, rutbe: "Usta", ikon: "star.fill", gorevler: [ornekGorev])
+        // Önizleme verisi
+        let sampleTask = TaskModel(title: "Yaver Hazır", priority: .high, category: .personal, createdAt: Date(), isPrivate: false)
+        return SimpleEntry(date: Date(), xp: 100, rankName: "Çırak", rankIcon: "hammer.fill", tasks: [sampleTask])
     }
 
     func getSnapshot(in context: Context, completion: @escaping (SimpleEntry) -> ()) {
-        completion(veriOku())
+        completion(readData())
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<Entry>) -> ()) {
-        let entry = veriOku()
-        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 10, to: Date())!
+        let entry = readData()
+        let nextUpdate = Calendar.current.date(byAdding: .minute, value: 15, to: Date())!
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdate))
         completion(timeline)
     }
     
-    func veriOku() -> SimpleEntry {
+    // Veri Okuma
+    func readData() -> SimpleEntry {
+        // ⚠️ App Group ID'nizin 'Signing & Capabilities' sekmesindekiyle AYNI olduğundan emin ol.
         let userDefaults = UserDefaults(suiteName: "group.com.kopanzi.yaver")
-        let xp = userDefaults?.integer(forKey: "kullaniciXP") ?? 0
+        let xp = userDefaults?.integer(forKey: "userXP") ?? 0
         
-        // Görevleri JSON'dan Oku
-        var widgetGorevleri: [GorevModel] = []
-        if let data = userDefaults?.data(forKey: "widgetGorevler") {
-            if let decoded = try? JSONDecoder().decode([GorevModel].self, from: data) {
-                widgetGorevleri = decoded
+        var rankInfo: (name: String, icon: String) = ("Çırak", "hammer.fill")
+        if xp >= 50 { rankInfo = ("Kalfa", "wrench.and.screwdriver.fill") }
+        if xp >= 150 { rankInfo = ("Usta", "star.fill") }
+        if xp >= 300 { rankInfo = ("Efsane", "crown.fill") }
+        
+        var widgetTasks: [TaskModel] = []
+        if let data = userDefaults?.data(forKey: "yaver_tasks_v2") {
+            if let decoded = try? JSONDecoder().decode([TaskModel].self, from: data) {
+                let filtered = decoded.filter { !$0.isCompleted }
+                widgetTasks = Array(filtered.prefix(3))
             }
         }
         
-        // Rütbe Hesabı
-        var rutbeIsim = "Çırak"; var rutbeIkon = "hammer.fill"
-        switch xp {
-        case 0..<50: rutbeIsim = "Çırak"; rutbeIkon = "hammer.fill"
-        case 50..<150: rutbeIsim = "Kalfa"; rutbeIkon = "wrench.and.screwdriver.fill"
-        case 150..<300: rutbeIsim = "Usta"; rutbeIkon = "star.fill"
-        case 300..<600: rutbeIsim = "Efsane"; rutbeIkon = "crown.fill"
-        default: rutbeIsim = "Tosun Paşa"; rutbeIkon = "trophy.fill"
-        }
-        
-        return SimpleEntry(date: Date(), xp: xp, rutbe: rutbeIsim, ikon: rutbeIkon, gorevler: widgetGorevleri)
+        return SimpleEntry(date: Date(), xp: xp, rankName: rankInfo.name, rankIcon: rankInfo.icon, tasks: widgetTasks)
     }
 }
 
-// 2. MODEL
-struct SimpleEntry: TimelineEntry {
-    let date: Date
-    let xp: Int
-    let rutbe: String
-    let ikon: String
-    let gorevler: [GorevModel] // ✨ Artık görevleri de taşıyor
-}
-
-// 3. GÖRÜNÜM
+// 3. WIDGET ARAYÜZÜ
 struct YaverWidgetEntryView : View {
     var entry: Provider.Entry
-    let temaRengi = Color.indigo
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Üst Bar: Rütbe ve XP
+        VStack(alignment: .leading, spacing: 10) {
+            
+            // Üst Kısım
             HStack {
-                Image(systemName: entry.ikon)
-                    .foregroundColor(temaRengi)
-                Text(entry.rutbe)
-                    .font(.caption)
-                    .bold()
-                    .foregroundColor(temaRengi)
-                
+                Image(systemName: entry.rankIcon)
+                    .foregroundColor(.yellow)
+                VStack(alignment: .leading) {
+                    Text(entry.rankName)
+                        .font(.caption)
+                        .bold()
+                        .foregroundColor(.white)
+                    Text("\(entry.xp) XP")
+                        .font(.caption2)
+                        .foregroundColor(.gray)
+                }
                 Spacer()
-                
-                Text("\(entry.xp) XP")
-                    .font(.caption2)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(temaRengi.opacity(0.1))
-                    .cornerRadius(8)
+                Image(systemName: "list.bullet.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.blue)
             }
-            .padding(.bottom, 8)
             
-            Divider().background(temaRengi.opacity(0.3))
+            Divider().overlay(Color.white.opacity(0.3))
             
-            // Görev Listesi
-            if entry.gorevler.isEmpty {
-                // Görev Yoksa
+            // Liste Kısımı
+            if entry.tasks.isEmpty {
                 VStack {
                     Spacer()
-                    Image(systemName: "checkmark.circle")
-                        .font(.largeTitle)
-                        .foregroundColor(.gray.opacity(0.3))
-                    Text("Her şey tamam!")
+                    Text("Görevler Tamam! 🎉")
                         .font(.caption)
                         .foregroundColor(.gray)
                     Spacer()
                 }
-                .frame(maxWidth: .infinity)
             } else {
-                // Görev Varsa (Liste)
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(entry.gorevler.prefix(3)) { gorev in
+                    // 🛠️ SENIOR FIX: id'yi açıkça belirtiyoruz ve Closure parametresini tipliyoruz.
+                    ForEach(entry.tasks, id: \.id) { (task: TaskModel) in
                         HStack(spacing: 6) {
-                            // Öncelik Çizgisi
+                            // Renk Çubuğu
+                            // .fill yerine .foregroundColor kullanmak Widgetlarda daha stabildir.
                             Capsule()
-                                .fill(gorev.onem.renk)
-                                .frame(width: 3, height: 12)
+                                .foregroundColor(task.priority.color)
+                                .frame(width: 4, height: 14)
                             
-                            Text(gorev.baslik)
+                            Text(task.title)
                                 .font(.caption)
                                 .lineLimit(1)
-                                .strikethrough(gorev.tamamlandi)
+                                .strikethrough(task.isCompleted)
+                                .foregroundColor(.white)
                             
                             Spacer()
-                            
-                            // Saat
-                            Text(gorev.tarih.formatted(date: .omitted, time: .shortened))
-                                .font(.system(size: 8))
-                                .foregroundColor(.gray)
                         }
-                        .padding(.top, 4)
                     }
                 }
-                .padding(.top, 4)
             }
             Spacer()
         }
-        .containerBackground(Color(uiColor: .systemBackground), for: .widget)
+        .padding()
+        .containerBackground(Color.black, for: .widget)
     }
 }
 
@@ -140,8 +127,8 @@ struct YaverWidget: Widget {
         StaticConfiguration(kind: kind, provider: Provider()) { entry in
             YaverWidgetEntryView(entry: entry)
         }
-        .configurationDisplayName("Yaver Görevleri")
-        .description("Rütben ve yaklaşan görevlerin.")
+        .configurationDisplayName("Yaver")
+        .description("Görevlerini takip et.")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
