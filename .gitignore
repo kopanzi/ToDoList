@@ -1,1 +1,3 @@
-Secrets.swift
+**/Secrets.swift
+.DS_Store
+xcuserdata/
