@@ -74,6 +74,16 @@ final class CalendarViewModel: ObservableObject {
         }
     }
     
+    // ✨ YENİ: Bugüne Dönme (Işınlanma) Motoru
+    /// Takvimi anında bugüne odaklar ve hafta kaydırmasını (offset) sıfırlar.
+    func jumpToToday() {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            self.selectedDate = Date()
+            self.currentWeekOffset = 0
+            hapticManager.triggerLightImpact()
+        }
+    }
+    
     // MARK: - Task Filtering & Heatmap (Veri Analizi)
     
     /// Seçili güne ait "Today's Flow" (Günün Akışı) görevlerini getirir.

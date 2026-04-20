@@ -1,11 +1,15 @@
 import SwiftUI
 
 /// Takvimin üst kısmında yer alan, 2 haftalık (14 günlük) görünümü sunan akıllı bileşen.
-/// Senior Notu: DragGesture (Sürükleme) entegrasyonu ile kusursuz bir mobil deneyim sağlar.
+/// Senior Notu: DragGesture (Sürükleme) ve LongPressGesture (Basılı Tutma) entegrasyonu ile kusursuz bir mobil deneyim sağlar.
 struct CompactWeekView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: CalendarViewModel
     @EnvironmentObject var appearance: AppearanceManager
+    
+    // ✨ SENIOR FIX: Ana ekrandan gelen bağımlılıklar ve basılı tutma köprüsü
+    @ObservedObject var taskVM: TaskViewModel
+    var onLongPress: (Date) -> Void
     
     // Grid yapısı: Haftanın 7 günü için 7 eşit sütun
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 7)
@@ -18,7 +22,7 @@ struct CompactWeekView: View {
         let currentDays = viewModel.generateCompactWeeks()
         
         VStack(spacing: 16) {
-            // 1. ÜST BAŞLIK VE YÖN OKLARI
+            // 1. ÜST BAŞLIK VE YÖN OKLARI (YENİ BUGÜN BUTONU BURADA)
             headerRow(days: currentDays)
             
             // 2. HAFTANIN GÜNLERİ (PZT, SAL...)
@@ -34,10 +38,21 @@ struct CompactWeekView: View {
                         heatmapLevel: viewModel.getHeatmapLevel(for: date),
                         hasHiddenTasks: viewModel.hasHiddenTasks(on: date),
                         action: {
+                            // NORMAL TIKLAMA (Sadece günü seçer)
                             HapticManager.shared.triggerSelection()
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 viewModel.selectedDate = date
                             }
+                        },
+                        onLongPress: {
+                            // ✨ GİZLİ GÜÇ: Basılı tutunca tetiklenir (DayCellView'dan gelir)
+                            HapticManager.shared.triggerHeavyImpact()
+                            // Önce o günü seçili yapıyoruz ki UI'da da güncellensin
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                viewModel.selectedDate = date
+                            }
+                            // Sonra dışarıya (CalendarView'a) form açması için sinyal gönderiyoruz
+                            onLongPress(date)
                         }
                     )
                 }
@@ -84,7 +99,23 @@ private extension CompactWeekView {
             
             Spacer()
             
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
+                // ✨ DİNAMİK "BUGÜN" BUTONU: Sadece bugünde değilsek görünür!
+                if !Calendar.current.isDateInToday(viewModel.selectedDate) || viewModel.currentWeekOffset != 0 {
+                    Button(action: {
+                        viewModel.jumpToToday()
+                    }) {
+                        Text("Bugün")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(appearance.accentColor)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(appearance.accentColor.opacity(0.15))
+                            .clipShape(Capsule())
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                }
+                
                 Button(action: { viewModel.changeWeek(by: -1) }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .bold))
@@ -103,6 +134,9 @@ private extension CompactWeekView {
             }
         }
         .padding(.horizontal, 4)
+        // Yeni buton girip çıkarken güzel bir animasyon yapsın
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.selectedDate)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.currentWeekOffset)
     }
     
     /// Haftanın gün başlıklarını (PZT, SAL...) çizer
@@ -138,8 +172,13 @@ private extension CompactWeekView {
         // Arkada Mesh efekti simülasyonu
         Color(hex: "050a09").ignoresSafeArea()
         
-        CompactWeekView(viewModel: CalendarViewModel(taskVM: TaskViewModel()))
-            .padding()
+        let dummyTaskVM = TaskViewModel()
+        CompactWeekView(
+            viewModel: CalendarViewModel(taskVM: dummyTaskVM),
+            taskVM: dummyTaskVM,
+            onLongPress: { _ in }
+        )
+        .padding()
     }
     .environmentObject(AppearanceManager.shared)
 }

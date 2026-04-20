@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Takvim modülünün ana ekranı. Üstteki 14 günlük şeridi ve alttaki zaman çizelgesini birleştirir.
-/// Senior Notu: AddTaskView ile tam entegrasyon sağlanmış, seçili tarih bilgisi
-/// otomatik olarak yeni görev formuna aktarılacak şekilde güncellenmiştir.
+/// Senior Notu: AddTaskView ile tam entegrasyon sağlanmış, görev ekleme tetikleyicileri
+/// alt bileşenlere (CompactWeekView ve DailyFlowListView) devredilmiştir.
 struct CalendarView: View {
     // MARK: - Properties
     @ObservedObject var taskVM: TaskViewModel
@@ -31,19 +31,26 @@ struct CalendarView: View {
             Color.clear.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 1. ÜST HEADER (Ay, Yıl, Ekleme ve Avatar)
+                // 1. ÜST HEADER (Tamamen sadeleştirildi)
                 headerView
                 
                 // 2. KOMPAKT HAFTALIK TAKVİM (Üst Yarı)
-                CompactWeekView(viewModel: viewModel)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
-                    .zIndex(2)
+                // ✨ SENIOR FIX: Basılı tutma (Long Press) köprüsü eklendi
+                CompactWeekView(viewModel: viewModel, taskVM: taskVM) { date in
+                    taskVM.defaultAdditionDate = date
+                    showingAddTask = true
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+                .zIndex(2)
                 
                 // 3. GÜNLÜK AKIŞ LİSTESİ (Alt Yarı)
-                // Senior Notu: DailyFlow içinden de tetikleme yapılabilmesi için taskVM geçiliyor
-                DailyFlowListView(viewModel: viewModel, taskVM: taskVM)
-                    .zIndex(1)
+                // ✨ SENIOR FIX: Ekleme butonu köprüsü eklendi
+                DailyFlowListView(viewModel: viewModel, taskVM: taskVM) {
+                    taskVM.defaultAdditionDate = viewModel.selectedDate
+                    showingAddTask = true
+                }
+                .zIndex(1)
             }
             
             // 4. YÜZEN AI BALONU
@@ -63,7 +70,7 @@ struct CalendarView: View {
 // MARK: - Sub-Views & Helpers
 private extension CalendarView {
     
-    /// Ekranın en üstünde yer alan, Menü, Tarih, Ekleme Butonu ve Avatar'ı içeren başlık.
+    /// Ekranın en üstünde yer alan, Menü, Tarih ve Avatar'ı içeren başlık.
     var headerView: some View {
         HStack {
             // SOL: Menü + Tarih Bilgisi
@@ -92,25 +99,8 @@ private extension CalendarView {
             
             Spacer()
             
-            // SAĞ: Ekleme Butonu ve Avatar
+            // SAĞ: Sadece Avatar (Bugün butonu CompactWeekView'e taşındı)
             HStack(spacing: 12) {
-                // ✨ YENİ: Hızlı Görev Ekleme Butonu
-                Button(action: {
-                    HapticManager.shared.triggerLightImpact()
-                    // 🎯 KRİTİK ADIM: Takvimde seçili olan günü TaskViewModel'e aktar!
-                    taskVM.defaultAdditionDate = viewModel.selectedDate
-                    showingAddTask = true
-                }) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.black)
-                        .frame(width: 40, height: 40)
-                        .background(appearance.accentColor)
-                        .clipShape(Circle())
-                        .shadow(color: appearance.accentColor.opacity(0.4), radius: 8, x: 0, y: 4)
-                }
-                .buttonStyle(.plain)
-                
                 AvatarView(size: 40, showAura: false)
             }
         }

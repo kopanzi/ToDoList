@@ -2,18 +2,20 @@ import SwiftUI
 
 /// Takvim ekranının alt yarısında yer alan, seçili günün görevlerini
 /// zaman çizelgesi (timeline) formatında gösteren bileşen.
-/// Senior Notu: Glassmorphism efektleri ve oyunlaştırma rozetleriyle zenginleştirilmiştir.
+/// Senior Notu: Glassmorphism efektleriyle zenginleştirilmiş,
+/// görev ekleme sorumluluğu ana görünüme (CalendarView) devredilmiştir.
 struct DailyFlowListView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: CalendarViewModel
     @ObservedObject var taskVM: TaskViewModel
     @EnvironmentObject var appearance: AppearanceManager
     
-    @State private var showingAddTask = false
+    // Dışarıdan (CalendarView'dan) gönderilecek görev ekleme tetikleyicisi
+    var onAddTap: () -> Void
     
     var body: some View {
         VStack(spacing: 0) {
-            // 1. ÜST BAŞLIK (Header)
+            // 1. ÜST BAŞLIK VE AKILLI BUTON (Header)
             headerView
             
             // 2. GÖREVLER ZAMAN ÇİZELGESİ
@@ -32,7 +34,10 @@ struct DailyFlowListView: View {
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(.white.opacity(0.5))
                         
-                        Button(action: { showingAddTask = true }) {
+                        Button(action: {
+                            HapticManager.shared.triggerLightImpact()
+                            onAddTap() // Boş durumdayken de ana takvime ekleme komutu gönderir
+                        }) {
                             Text("Dinlen veya Yeni Görev Ekle")
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundColor(appearance.accentColor)
@@ -58,48 +63,34 @@ struct DailyFlowListView: View {
             }
         }
         .padding(.horizontal, 16)
-        .sheet(isPresented: $showingAddTask) {
-            // Takvimden görev eklendiğinde seçili günü varsayılan yapmak için
-            // AddTaskView'a tarih parametresi eklenebilir ancak mevcut yapıyı bozmamak için standart çağırıyoruz.
-            AddTaskView(viewModel: taskVM, isPrivateDefault: false)
-        }
     }
 }
 
 // MARK: - Sub-Views
 private extension DailyFlowListView {
     
-    /// "Today's Flow" Başlığı ve Ekleme Butonu
+    /// "Bugünün Akışı" Başlığı ve Minimalist Ekleme Butonu
     var headerView: some View {
         HStack {
-            HStack(spacing: 10) {
-                Text(isToday ? "Bugünün Akışı" : "Günlük Akış")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-                
-                // Oyunlaştırma Rozeti (Level)
-                Text("LVL \(taskVM.userXP / 50 + 1)")
-                    .font(.system(size: 10, weight: .black, design: .monospaced))
-                    .foregroundColor(appearance.accentColor)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(appearance.accentColor.opacity(0.15))
-                    .clipShape(Capsule())
-            }
+            Text(isToday ? "Bugünün Akışı" : "Günlük Akış")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+            
+            // LVL Yazısı kaldırıldı, odak sadece listeye verildi.
             
             Spacer()
             
+            // YENİ AKILLI VE MİNİMALİST BUTON
             Button(action: {
                 HapticManager.shared.triggerLightImpact()
-                showingAddTask = true
+                onAddTap() // Dışarıya haber veriyor
             }) {
-                HStack(spacing: 4) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .bold))
-                    Text("Görev Ekle")
-                        .font(.system(size: 13, weight: .bold))
-                }
-                .foregroundColor(appearance.accentColor)
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
         }

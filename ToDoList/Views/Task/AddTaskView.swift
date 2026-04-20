@@ -137,17 +137,18 @@ private extension AddTaskView {
         let title = newTaskTitle.trimmingCharacters(in: .whitespaces)
         guard !title.isEmpty else { return }
         
-        // 🎯 KRİTİK: Hatırlatıcı kapalı olsa bile takvimden geliyorsak o günü baz alıyoruz.
-        // Eğer hiçbir tarih seçilmemişse bugünü (Date()) kullanıyoruz.
-        let finalDate = isReminderEnabled ? selectedDate : (viewModel.defaultAdditionDate ?? Date())
+        // 🎯 SENIOR FIX: init içerisinde selectedDate zaten doğru tarihe kuruluyor.
+        // Eğer kullanıcı hatırlatıcıyı kapatsa bile takvimden seçtiği gün korunmalı.
+        let finalDate = selectedDate
         
-        // TaskViewModel'deki addTask imzasına (5 parametre) uygun çağrı
+        // TaskViewModel'deki addTask imzasına (6 parametre) tam uyumlu çağrı ✅
         viewModel.addTask(
             title: title,
             priority: selectedPriority,
             date: finalDate,
             category: selectedCategory,
-            isPrivate: isNewTaskPrivate
+            isPrivate: isNewTaskPrivate,
+            isReminderEnabled: isReminderEnabled // Eksik olan parametre eklendi
         )
         
         HapticManager.shared.triggerSuccess()

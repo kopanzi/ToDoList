@@ -7,25 +7,22 @@ import Combine
 /// Senior Notu: @MainActor ile işaretlenmiştir, böylece tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
 @MainActor
 final class TaskViewModel: ObservableObject {
-    // TaskViewModel içine eklenecek
+    
+    // MARK: - Published Properties
+    
+    /// Takvimden görev eklerken kullanılan geçici tarih tutucu
     @Published var defaultAdditionDate: Date? = nil
-    // MARK: - XP Sabitleri
-    private struct XPRewards {
-        static let newTask = 20 // Test modunda olduğumuz için görev ekleme puanını biraz artırdım
-        // Tamamlama (completeTask) ve geri alma (undoTask) artık XPService tarafından dinamik hesaplanıyor!
-    }
     
-    // MARK: - Published Properties (Yayınlanan Veriler)
-    
+    /// Tüm görevlerin listesi. Değiştiğinde otomatik kaydeder ve UI temasını günceller.
     @Published var tasks: [TaskModel] = [] {
         didSet {
             saveAndSync()
-            // ✅ GÖRÜNÜM DEVRİMİ TETİKLEYİCİSİ
-            // Her görev değişiminde stres seviyesini ölçüp temayı günceller.
+            // Görev listesi değişiminde stres seviyesini ölçüp Mesh Gradient renklerini günceller.
             AppearanceManager.shared.updateAppearance(with: tasks)
         }
     }
     
+    /// Kullanıcının toplam tecrübe puanı.
     @Published var userXP: Int = UserDefaults.standard.integer(forKey: "userXP") {
         didSet {
             UserDefaults.standard.set(userXP, forKey: "userXP")
@@ -33,11 +30,11 @@ final class TaskViewModel: ObservableObject {
         }
     }
     
-    @Published var isUnlocked: Bool = false     // Gizli Kasa kilidi
-    @Published var showConfetti: Bool = false    // Rütbe atlama efekti
-    @Published var errorMessage: String? = nil  // View tarafındaki uyarılar için
+    @Published var isUnlocked: Bool = false      // Gizli Kasa biyometrik kilit durumu
+    @Published var showConfetti: Bool = false     // Rütbe atlama veya büyük ödül kutlaması
+    @Published var errorMessage: String? = nil   // UI'da gösterilecek hata veya tebrik mesajları
     
-    // MARK: - Servisler (Private Dependencies)
+    // MARK: - Servisler (Dependencies)
     
     private let xpService = XPService.shared
     private let authService = AuthService.shared
@@ -46,11 +43,17 @@ final class TaskViewModel: ObservableObject {
     private let hapticManager = HapticManager.shared
     private let dataService = DataService.shared
     
+    // MARK: - XP Ayarları
+    private struct XPRewards {
+        static let newTask = 20
+        static let dailyGoalBonus = 150
+    }
+    
     // MARK: - Initialization
     
     init() {
         loadTasks()
-        // Uygulama açıldığında mevcut görevlerle görünümü bir kez başlat
+        // Başlangıçta temayı mevcut görev durumuna göre ayarla
         AppearanceManager.shared.updateAppearance(with: tasks)
     }
     
@@ -67,7 +70,7 @@ final class TaskViewModel: ObservableObject {
     
     // MARK: - Filtreleme Mantığı (Filtering Logic)
     
-    /// View katmanının ihtiyaç duyduğu filtrelenmiş veriyi sağlar.
+    /// Görünüm (View) katmanı için filtrelenmiş ve sıralanmış veri sağlar.
     func getFilteredTasks(category: Category?, showPrivate: Bool, searchText: String) -> [TaskModel] {
         var result = tasks
         
@@ -84,7 +87,7 @@ final class TaskViewModel: ObservableObject {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
         
-        // Sıralama: Tamamlanmamışlar üstte, yeni tarihliler en üstte
+        // Sıralama: Bitmemiş görevler üstte, tarihe göre yeniden eskiye
         return result.sorted {
             if $0.isCompleted != $1.isCompleted {
                 return !$0.isCompleted
@@ -93,21 +96,26 @@ final class TaskViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Görev Aksiyonları (Task Actions)
+    // MARK: - Görev CRUD İşlemleri
     
-    /// 🔔 YENİ: isReminderEnabled parametresi eklendi ve varsayılan olarak false atandı.
+    /// Yeni görev ekler.
+    /// ✅ SENIOR FIX: TaskModel init sırası düzeltildi (isCompleted, priority'den önce gelmeli).
     func addTask(title: String, priority: Priority, date: Date, category: Category?, isPrivate: Bool, isReminderEnabled: Bool = false) {
         let newTask = TaskModel(
             title: title,
-            priority: priority,
+            isCompleted: false, // 🎯 İlk sırada bu olmalı
+            priority: priority,   // 🎯 Sonra bu gelmeli
             category: category,
             createdAt: date,
             isPrivate: isPrivate
         )
-        tasks.append(newTask)
+        
+        withAnimation {
+            tasks.append(newTask)
+        }
+        
         addXP(amount: XPRewards.newTask)
         
-        // 🔔 HATIRLATICI KURULUMU
         if isReminderEnabled {
             NotificationManager.shared.scheduleNotification(for: newTask)
         }
@@ -115,69 +123,61 @@ final class TaskViewModel: ObservableObject {
         hapticManager.triggerLightImpact()
     }
     
-    // ... mevcut kodlar ...
-
-        func deleteTask(at offsets: IndexSet) {
-            offsets.forEach { index in
-                let task = tasks[index]
-                // ✨ YENİ: Diskten medya temizliği YERİNE çöp kutusuna gönderiyoruz
-                TrashManager.shared.moveToTrash(task: task)
-                NotificationManager.shared.cancelNotification(for: task.id)
-            }
-            tasks.remove(atOffsets: offsets)
-            hapticManager.triggerMediumImpact()
+    /// Görevi silmek yerine Çöp Kutusuna (TrashManager) taşır.
+    func deleteTask(at offsets: IndexSet) {
+        offsets.forEach { index in
+            let task = tasks[index]
+            TrashManager.shared.moveToTrash(task: task)
+            NotificationManager.shared.cancelNotification(for: task.id)
+        }
+        tasks.remove(atOffsets: offsets)
+        hapticManager.triggerMediumImpact()
+    }
+    
+    /// Tamamlanan tüm görevleri toplu halde Çöp Kutusuna gönderir.
+    func clearCompletedTasks() {
+        let completed = tasks.filter { $0.isCompleted }
+        guard !completed.isEmpty else { return }
+        
+        completed.forEach { task in
+            TrashManager.shared.moveToTrash(task: task)
+            NotificationManager.shared.cancelNotification(for: task.id)
         }
         
-        func clearCompletedTasks() {
-            let completed = tasks.filter { $0.isCompleted }
-            guard !completed.isEmpty else { return }
-            
-            completed.forEach { task in
-                // ✨ YENİ: Temizlenen görevleri de çöpe taşı
-                TrashManager.shared.moveToTrash(task: task)
-                NotificationManager.shared.cancelNotification(for: task.id)
-            }
+        withAnimation {
             tasks.removeAll { $0.isCompleted }
-            hapticManager.triggerHeavyImpact()
         }
+        hapticManager.triggerHeavyImpact()
+    }
 
-        // ✨ YENİ: Çöpten kurtarma fonksiyonu
-        func restoreTask(_ task: TaskModel) {
+    /// Çöp kutusundan geri yüklenen görevi listeye ekler.
+    func restoreTask(_ task: TaskModel) {
+        withAnimation {
             tasks.append(task)
-            saveAndSync()
-            hapticManager.triggerSuccess()
         }
-
-    // ... mevcut kodlar ...
+        saveAndSync()
+        hapticManager.triggerSuccess()
+    }
     
+    /// Görevin tamamlanma durumunu değiştirir ve XP hesaplamasını tetikler.
     func toggleCompletion(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].isCompleted.toggle()
             
             let isDone = tasks[index].isCompleted
             
-            // 🔔 GÖREV BİTİNCE BİLDİRİMİ İPTAL ET (Gece yarısı gereksiz yere çalmasın)
+            // Bildirim iptal (Biten görev hatırlatılmamalı)
             if isDone {
                 NotificationManager.shared.cancelNotification(for: task.id)
             }
             
-            // 🛠️ YENİ XP MANTIĞI: Görev zorluğuna (Priority) göre çarpanlı XP hesaplama
+            // Dinamik XP hesaplama (Zorluğa göre çarpan uygular)
             let xpChange = xpService.calculateXP(for: tasks[index], isCompleted: isDone)
             addXP(amount: xpChange)
             
-            // 🏆 GÜNLÜK 5 GÖREV BONUSU
+            // 🏆 GÜNLÜK 5 GÖREV SERİSİ KONTROLÜ
             if isDone {
-                let calendar = Calendar.current
-                // Bugün oluşturulup bugün bitirilenleri sayar
-                let todayCompleted = tasks.filter { $0.isCompleted && calendar.isDateInToday($0.createdAt) }.count
-                
-                // Tam 5. görevi bitirdiğinde dev bonusu patlat!
-                if todayCompleted == 5 {
-                    addXP(amount: 150) // Test için devasa bonus
-                    self.errorMessage = "🔥 Günlük 5 Görev Serisi! +150 XP Bonus!" // Alert/Toast ile ekranda görünür
-                    triggerLevelUpEffect() // Eğlenceli konfeti şöleni
-                }
-                
+                checkDailyBonus()
                 hapticManager.triggerSuccess()
             } else {
                 hapticManager.triggerWarning()
@@ -185,8 +185,18 @@ final class TaskViewModel: ObservableObject {
         }
     }
     
-    func moveTask(from source: IndexSet, to destination: Int) {
-        tasks.move(fromOffsets: source, toOffset: destination)
+    private func checkDailyBonus() {
+        let calendar = Calendar.current
+        // Bugün bitirilen (isCompleted) görevlerin sayısı
+        let todayCompletedCount = tasks.filter {
+            $0.isCompleted && calendar.isDateInToday($0.createdAt)
+        }.count
+        
+        if todayCompletedCount == 5 {
+            addXP(amount: XPRewards.dailyGoalBonus)
+            self.errorMessage = "🔥 Günlük 5 Görev Tamamlandı! +150 XP Bonus!"
+            triggerLevelUpEffect()
+        }
     }
     
     func updateTaskNote(task: TaskModel, newNote: String) {
@@ -195,29 +205,25 @@ final class TaskViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Advanced Swipe Actions (Kaydırma Aksiyonları)
+    // MARK: - Gelişmiş Kaydırma Aksiyonları (Swipe)
     
-    /// Görevi tam 1 gün (24 saat) sonrasına erteler ve bildirimini günceller.
+    /// Görevi 24 saat sonrasına öteler.
     func postponeTask(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            // 1. Eski bildirimi iptal et
             NotificationManager.shared.cancelNotification(for: task.id)
             
-            // 2. Tarihi tam 1 gün ileri at
             if let newDate = Calendar.current.date(byAdding: .day, value: 1, to: tasks[index].createdAt) {
                 tasks[index].createdAt = newDate
                 
-                // 3. Görev bitmediyse yarına yeni bir bildirim kur
                 if !tasks[index].isCompleted {
                     NotificationManager.shared.scheduleNotification(for: tasks[index])
                 }
             }
-            
             hapticManager.triggerLightImpact()
         }
     }
     
-    /// Görevin önceliğini anında 'Çok Acil' yapar.
+    /// Önceliği anında en üst seviyeye çeker.
     func prioritizeTask(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].priority = .urgent
@@ -225,27 +231,19 @@ final class TaskViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Bildirim İzinleri (YENİ 🔔)
-    
-    /// Kullanıcıdan bildirim gönderme izni ister (AddTaskView'dan tetiklenir)
-    func requestNotificationPermission() {
-        NotificationManager.shared.requestAuthorization()
-    }
-
-    // MARK: - XP & Rütbe Yönetimi
+    // MARK: - XP & Rütbe & Güvenlik
     
     private func addXP(amount: Int) {
         let oldRank = currentRank
         userXP += amount
         if userXP < 0 { userXP = 0 }
         
-        // Rütbe atlama kontrolü (Yeni rütbenin rawValue'su eskisinden büyükse)
+        // Rütbe atlama durumunda konfeti patlat
         if currentRank.rawValue > oldRank.rawValue && amount > 0 {
             triggerLevelUpEffect()
         }
     }
     
-    /// View'lar için güncel rütbe bilgisini döner.
     var currentRank: Rank {
         xpService.getCurrentRank(for: userXP)
     }
@@ -253,14 +251,13 @@ final class TaskViewModel: ObservableObject {
     private func triggerLevelUpEffect() {
         showConfetti = true
         hapticManager.triggerHeavyImpact()
-        // Efekti 4 saniye sonra kapat
+        // Konfeti etkisini 4 saniye sonra durdur
         DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
             self.showConfetti = false
         }
     }
     
-    // MARK: - Güvenlik (FaceID Entegrasyonu)
-    
+    /// Biyometrik doğrulama (FaceID) başlatır.
     func authenticate() {
         Task {
             do {
@@ -285,13 +282,11 @@ final class TaskViewModel: ObservableObject {
     
     // MARK: - AI & Medya
     
-    /// Gemini üzerinden görev başlığına göre öneri alır.
     func generateAISuggestions(for task: TaskModel) async -> String? {
         let suggestion = await geminiService.oneriAl(gorevBasligi: task.title)
         return suggestion.isEmpty ? nil : suggestion
     }
     
-    /// Göreve yeni görseller ekler ve diske kaydeder.
     func addImages(to task: TaskModel, images: [UIImage]) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
         
@@ -303,17 +298,8 @@ final class TaskViewModel: ObservableObject {
         hapticManager.triggerLightImpact()
     }
     
-    // MARK: - Helpers (Yardımcı Metotlar)
+    // MARK: - Widget Reload
     
-    /// Bir görev silindiğinde diskteki ağır dosyalarını (resim/ses) temizler.
-    private func cleanupTaskMedia(_ task: TaskModel) {
-        task.imageIDs.forEach { mediaManager.deleteFile(id: $0, fileExtension: "jpg") }
-        if let audioID = task.audioID {
-            mediaManager.deleteFile(id: audioID, fileExtension: "m4a")
-        }
-    }
-    
-    /// Widget'ların güncel kalması için shared UserDefaults'a veri yazar.
     private func reloadWidgets() {
         if let encoded = try? JSONEncoder().encode(tasks) {
             UserDefaults(suiteName: "group.com.kopanzi.yaver")?.set(encoded, forKey: "yaver_tasks_v2")

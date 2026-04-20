@@ -1,8 +1,7 @@
 import SwiftUI
 
 /// Takvim üzerindeki tek bir günü temsil eden akıllı ve etkileşimli hücre.
-/// Senior Notu: Kendi içinde veri hesaplamaz, dışarıdan aldığı Primitive (basit) verileri
-/// en yüksek UI kalitesiyle (Glassmorphism, Heatmap Dots, Vault Indicator) çizer.
+/// Senior Notu: Geçmiş günleri soluklaştırarak (Dimming) kullanıcının bugüne odaklanmasını sağlayan UX iyileştirmesi yapıldı.
 struct DayCellView: View {
     // MARK: - Properties
     let date: Date
@@ -11,6 +10,9 @@ struct DayCellView: View {
     let heatmapLevel: CalendarViewModel.HeatmapLevel
     let hasHiddenTasks: Bool
     let action: () -> Void
+    
+    // ✨ SENIOR FIX: Basılı tutma eylemi için özel bir kanal açıyoruz
+    var onLongPress: (() -> Void)? = nil
     
     @EnvironmentObject var appearance: AppearanceManager
     
@@ -47,7 +49,6 @@ struct DayCellView: View {
                             .font(.system(size: 9, weight: .black))
                             .foregroundColor(.orange)
                             .shadow(color: .orange.opacity(0.6), radius: 3, x: 0, y: 0)
-                            // Dairenin tam sağ üst köşesine estetik bir şekilde oturtuyoruz
                             .offset(x: 4, y: -2)
                     }
                 }
@@ -72,39 +73,45 @@ struct DayCellView: View {
             .contentShape(Rectangle()) // Tıklama alanını genişletmek için
         }
         .buttonStyle(DayCellButtonStyle())
+        // ✨ SENIOR FIX: SwiftUI'ın standart buton tıklamasını engellemeden basılı tutmayı algılar
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.5).onEnded { _ in
+                onLongPress?()
+            }
+        )
     }
 }
 
 // MARK: - Private Helpers & Styles
 private extension DayCellView {
     
-    /// Tarihten sadece gün rakamını (Örn: "16") çıkarır.
     var dayNumber: String {
         let calendar = Calendar.current
         let day = calendar.component(.day, from: date)
         return "\(day)"
     }
     
-    /// Günün durumuna göre metin rengini zekice belirler.
     var textColor: Color {
         if isSelected {
-            // Seçiliyse neon rengin üzerinde zıt (koyu) renk şık durur
-            return Color(hex: "10221f")
+            return Color(hex: "10221f") // Seçiliyse koyu renk daha okunaklı olur
         }
         if isToday {
             return appearance.accentColor
         }
         
-        // Tatil Günü Vurgusu (Hafta sonuysa hafif sönük göster)
-        let isWeekend = Calendar.current.isDateInWeekend(date)
-        if isWeekend && heatmapLevel == .none {
-            return .white.opacity(0.3) // Dinlenme günü mesajı
+        let calendar = Calendar.current
+        let isPast = calendar.startOfDay(for: date) < calendar.startOfDay(for: Date())
+        if isPast && heatmapLevel == .none {
+            return .white.opacity(0.25)
+        }
+        
+        if calendar.isDateInWeekend(date) && heatmapLevel == .none {
+            return .white.opacity(0.4)
         }
         
         return .white.opacity(0.9)
     }
     
-    /// Isı haritası seviyesine göre nokta sayısını belirler (1, 2 veya 3).
     var dotCount: Int {
         switch heatmapLevel {
         case .none: return 0
@@ -115,7 +122,7 @@ private extension DayCellView {
     }
 }
 
-// ✨ YENİ: Hücreye özel esneme (Bouncy) tıklama stili
+// ✨ Hücreye özel esneme (Bouncy) tıklama stili
 struct DayCellButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -123,54 +130,4 @@ struct DayCellButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.8 : 1.0)
             .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
     }
-}
-
-// MARK: - Preview
-#Preview {
-    ZStack {
-        Color(hex: "0a1412").ignoresSafeArea() // Koyu arka plan
-        
-        HStack(spacing: 15) {
-            // Standart Gün (1 Nokta)
-            DayCellView(
-                date: Date(),
-                isSelected: false,
-                isToday: false,
-                heatmapLevel: .low,
-                hasHiddenTasks: false,
-                action: {}
-            )
-            
-            // Bugün (3 Nokta + Seçili Değil)
-            DayCellView(
-                date: Date(),
-                isSelected: false,
-                isToday: true,
-                heatmapLevel: .high,
-                hasHiddenTasks: false,
-                action: {}
-            )
-            
-            // Seçili Gün (Gizli Kasa + 2 Nokta)
-            DayCellView(
-                date: Date(),
-                isSelected: true,
-                isToday: false,
-                heatmapLevel: .medium,
-                hasHiddenTasks: true,
-                action: {}
-            )
-            
-            // Hafta Sonu Boş Gün (Sönük)
-            DayCellView(
-                date: Calendar.current.date(byAdding: .day, value: 3, to: Date()) ?? Date(),
-                isSelected: false,
-                isToday: false,
-                heatmapLevel: .none,
-                hasHiddenTasks: false,
-                action: {}
-            )
-        }
-    }
-    .environmentObject(AppearanceManager.shared)
 }
