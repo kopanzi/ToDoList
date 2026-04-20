@@ -7,7 +7,8 @@ import Combine
 /// Senior Notu: @MainActor ile işaretlenmiştir, böylece tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
 @MainActor
 final class TaskViewModel: ObservableObject {
-    
+    // TaskViewModel içine eklenecek
+    @Published var defaultAdditionDate: Date? = nil
     // MARK: - XP Sabitleri
     private struct XPRewards {
         static let newTask = 20 // Test modunda olduğumuz için görev ekleme puanını biraz artırdım

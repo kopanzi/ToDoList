@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Takvim modülünün ana ekranı. Üstteki 14 günlük şeridi ve alttaki zaman çizelgesini birleştirir.
-/// Senior Notu: Bu View, kendi içinde state yönetmez; tüm veriyi CalendarViewModel'den çeker
-/// ve alt bileşenlere dağıtarak "Single Source of Truth" (Tek Gerçeklik Kaynağı) prensibine uyar.
+/// Senior Notu: AddTaskView ile tam entegrasyon sağlanmış, seçili tarih bilgisi
+/// otomatik olarak yeni görev formuna aktarılacak şekilde güncellenmiştir.
 struct CalendarView: View {
     // MARK: - Properties
     @ObservedObject var taskVM: TaskViewModel
@@ -12,7 +12,8 @@ struct CalendarView: View {
     // Sidebar'ı tetiklemek için
     var onMenuTap: () -> Void
     
-    // Yüzen AI Balonu Animasyonu İçin
+    // Görev ekleme durumu
+    @State private var showingAddTask = false
     @State private var isAIPulsing = false
     
     // MARK: - Initialization
@@ -30,22 +31,31 @@ struct CalendarView: View {
             Color.clear.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 1. ÜST HEADER (Ay, Yıl, Arama ve Avatar)
+                // 1. ÜST HEADER (Ay, Yıl, Ekleme ve Avatar)
                 headerView
                 
                 // 2. KOMPAKT HAFTALIK TAKVİM (Üst Yarı)
                 CompactWeekView(viewModel: viewModel)
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
-                    .zIndex(2) // Gölgenin alt listeye düşmesi için
+                    .zIndex(2)
                 
-                // 3. GÜNLÜK AKIŞ LİSTESİ (Alt Yarı - Kaydırılabilir)
+                // 3. GÜNLÜK AKIŞ LİSTESİ (Alt Yarı)
+                // Senior Notu: DailyFlow içinden de tetikleme yapılabilmesi için taskVM geçiliyor
                 DailyFlowListView(viewModel: viewModel, taskVM: taskVM)
                     .zIndex(1)
             }
             
-            // 4. YÜZEN AI BALONU (Floating Action Bubble)
+            // 4. YÜZEN AI BALONU
             floatingAIBubble
+        }
+        // ✨ SENIOR FIX: Görev ekleme ekranını ana ekrandan yönetiyoruz
+        .sheet(isPresented: $showingAddTask) {
+            AddTaskView(viewModel: taskVM, isPrivateDefault: false)
+        }
+        // Sayfa kapandığında seçili tarihi temizle (Global state güvenliği)
+        .onDisappear {
+            taskVM.defaultAdditionDate = nil
         }
     }
 }
@@ -53,7 +63,7 @@ struct CalendarView: View {
 // MARK: - Sub-Views & Helpers
 private extension CalendarView {
     
-    /// Ekranın en üstünde yer alan, Hamburger menü, Ay/Yıl ve Avatar'ı içeren başlık.
+    /// Ekranın en üstünde yer alan, Menü, Tarih, Ekleme Butonu ve Avatar'ı içeren başlık.
     var headerView: some View {
         HStack {
             // SOL: Menü + Tarih Bilgisi
@@ -82,19 +92,22 @@ private extension CalendarView {
             
             Spacer()
             
-            // SAĞ: Arama ve Avatar
+            // SAĞ: Ekleme Butonu ve Avatar
             HStack(spacing: 12) {
+                // ✨ YENİ: Hızlı Görev Ekleme Butonu
                 Button(action: {
                     HapticManager.shared.triggerLightImpact()
-                    // Arama aksiyonu (Şimdilik animasyonlu tepki veriyor)
+                    // 🎯 KRİTİK ADIM: Takvimde seçili olan günü TaskViewModel'e aktar!
+                    taskVM.defaultAdditionDate = viewModel.selectedDate
+                    showingAddTask = true
                 }) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(.black)
                         .frame(width: 40, height: 40)
-                        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
+                        .background(appearance.accentColor)
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        .shadow(color: appearance.accentColor.opacity(0.4), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
                 
@@ -132,11 +145,10 @@ private extension CalendarView {
                 .shadow(color: appearance.accentColor.opacity(0.3), radius: 10, x: 0, y: 5)
                 .scaleEffect(isAIPulsing ? 1.05 : 0.95)
                 .padding(.trailing, 20)
-                .padding(.bottom, 120) // Alt Navigasyon Barı için boşluk
+                .padding(.bottom, 120)
             }
         }
         .onAppear {
-            // Nefes alma (pulse) animasyonunu döngüye sok
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 isAIPulsing = true
             }
@@ -145,7 +157,6 @@ private extension CalendarView {
     
     // MARK: - Logic Helpers
     
-    /// Seçili aya ait ismi Türkçe olarak döndürür (Örn: "Ekim")
     var currentMonthName: String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "tr_TR")
@@ -153,7 +164,6 @@ private extension CalendarView {
         return formatter.string(from: viewModel.selectedDate).capitalized
     }
     
-    /// Seçili güne bakarak AI balonunda görünecek akıllı bir mesaj üretir.
     var smartAIText: String {
         let tasks = viewModel.getDailyFlow(for: viewModel.selectedDate)
         let activeCount = tasks.filter { !$0.isCompleted }.count
@@ -169,15 +179,4 @@ private extension CalendarView {
             return "AI: Geçmişi değiştirilemez ama ders alınabilir."
         }
     }
-}
-
-// MARK: - Preview
-#Preview {
-    ZStack {
-        // Arkada Mesh Gradient simülasyonu
-        Color(hex: "050a09").ignoresSafeArea()
-        
-        CalendarView(taskVM: TaskViewModel(), onMenuTap: {})
-    }
-    .environmentObject(AppearanceManager.shared)
 }

@@ -1,9 +1,11 @@
 import SwiftUI
 
 /// Yeni görev oluşturma formunu yöneten bağımsız View bileşeni.
+/// Senior Notu: Takvimden gelen seçili tarih bilgisini (Context) algılar ve formu ona göre kurar.
 struct AddTaskView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: TaskViewModel
+    @EnvironmentObject var appearance: AppearanceManager
     var isPrivateDefault: Bool
     @Environment(\.dismiss) var dismiss
     
@@ -13,16 +15,29 @@ struct AddTaskView: View {
     @State private var selectedCategory: Category = .personal
     @State private var isNewTaskPrivate = false
     
-    // 🔔 YENİ: Hatırlatıcı Durumları
+    // 🔔 Hatırlatıcı ve Tarih Durumları
     @State private var isReminderEnabled = false
-    @State private var selectedDate = Date()
+    @State private var selectedDate: Date
     
     // MARK: - Init
     init(viewModel: TaskViewModel, isPrivateDefault: Bool) {
         self.viewModel = viewModel
         self.isPrivateDefault = isPrivateDefault
-        // Üst görünümden gelen gizlilik tercihini varsayılan olarak atıyoruz
+        
+        // 1. Gizlilik tercihini üst görünümden al
         _isNewTaskPrivate = State(initialValue: isPrivateDefault)
+        
+        // 2. 🎯 TAKVİM ENTEGRASYONU:
+        // Eğer Takvim ekranında bir tarih seçilip "+" butonuna basıldıysa,
+        // defaultAdditionDate dolu gelir. Onu başlangıç tarihi yapıyoruz.
+        let initialDate = viewModel.defaultAdditionDate ?? Date()
+        _selectedDate = State(initialValue: initialDate)
+        
+        // 3. UX Geliştirmesi: Eğer seçilen tarih bugün değilse,
+        // hatırlatıcıyı otomatik olarak açık başlatıyoruz (Kullanıcı kolaylığı).
+        if viewModel.defaultAdditionDate != nil && !Calendar.current.isDateInToday(initialDate) {
+            _isReminderEnabled = State(initialValue: true)
+        }
     }
     
     var body: some View {
@@ -34,7 +49,6 @@ struct AddTaskView: View {
                         TextField("Ne yapacaksın?", text: $newTaskTitle)
                             .submitLabel(.done)
                         
-                        // Kilit Butonu (Animasyonlu)
                         Button(action: {
                             withAnimation(.spring()) { isNewTaskPrivate.toggle() }
                         }) {
@@ -50,33 +64,28 @@ struct AddTaskView: View {
                             .font(.caption)
                             .foregroundColor(.orange)
                     }
-                } header: {
-                    Text("GÖREV TANIMI")
-                }
+                } header: { Text("GÖREV TANIMI") }
                 
-                // 🔔 2. ZAMANLAMA VE HATIRLATICI BÖLÜMÜ
+                // 🔔 2. ZAMANLAMA VE HATIRLATICI
                 Section {
                     Toggle(isOn: $isReminderEnabled.animation()) {
                         Label("Hatırlatıcı Ekle", systemImage: "bell.badge.fill")
                             .foregroundColor(isReminderEnabled ? .orange : .primary)
                     }
                     .tint(.orange)
-                    .onChange(of: isReminderEnabled) { _, newValue in
-                        if newValue {
-                            // Kullanıcıdan bildirim izni iste
-                            viewModel.requestNotificationPermission()
-                        }
-                    }
                     
                     if isReminderEnabled {
-                        DatePicker("Tarih ve Saat", selection: $selectedDate, in: Date()..., displayedComponents: [.date, .hourAndMinute])
-                            .datePickerStyle(.compact)
+                        DatePicker(
+                            "Tarih ve Saat",
+                            selection: $selectedDate,
+                            in: Date.distantPast..., // Geçmişe görev eklemeye izin ver (Takvim için)
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                        .datePickerStyle(.compact)
                     }
-                } header: {
-                    Text("ZAMANLAMA")
-                }
+                } header: { Text("ZAMANLAMA") }
                 
-                // 3. ÖNCELİK VE KATEGORİ SEÇİMİ
+                // 3. ÖNCELİK VE KATEGORİ
                 Section {
                     Picker("Öncelik", selection: $selectedPriority) {
                         ForEach(Priority.allCases, id: \.self) { priority in
@@ -94,19 +103,15 @@ struct AddTaskView: View {
                                 .tag(category)
                         }
                     }
-                } header: {
-                    Text("DETAYLAR")
-                }
+                } header: { Text("DETAYLAR") }
             }
             .navigationTitle(isNewTaskPrivate ? "Yeni Gizli Görev" : "Yeni Görev")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // SOL: İptal
                 ToolbarItem(placement: .cancellationAction) {
                     Button("İptal") { dismiss() }
                 }
                 
-                // SAĞ: Ekle
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Ekle") {
                         saveTaskAndDismiss()
@@ -116,37 +121,36 @@ struct AddTaskView: View {
                 }
             }
         }
-        // iPhone'da yarım ekran (Sheet) olarak açıldığında şık durması için
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        // Ekran kapandığında hafızadaki geçici tarihi temizliyoruz
+        .onDisappear {
+            viewModel.defaultAdditionDate = nil
+        }
     }
 }
 
 // MARK: - Logic
 private extension AddTaskView {
     
-    /// Görevi kaydeder ve ekranı kapatır.
     func saveTaskAndDismiss() {
-        // Boşlukları temizleyerek kontrol ediyoruz
         let title = newTaskTitle.trimmingCharacters(in: .whitespaces)
         guard !title.isEmpty else { return }
         
-        // ViewModel üzerinden ekleme yapıyoruz
+        // 🎯 KRİTİK: Hatırlatıcı kapalı olsa bile takvimden geliyorsak o günü baz alıyoruz.
+        // Eğer hiçbir tarih seçilmemişse bugünü (Date()) kullanıyoruz.
+        let finalDate = isReminderEnabled ? selectedDate : (viewModel.defaultAdditionDate ?? Date())
+        
+        // TaskViewModel'deki addTask imzasına (5 parametre) uygun çağrı
         viewModel.addTask(
             title: title,
             priority: selectedPriority,
-            date: isReminderEnabled ? selectedDate : Date(), // 🔔 Hatırlatıcı seçildiyse o tarihi kullan
+            date: finalDate,
             category: selectedCategory,
-            isPrivate: isNewTaskPrivate,
-            isReminderEnabled: isReminderEnabled // 🔔 Yeni parametre eklendi
+            isPrivate: isNewTaskPrivate
         )
         
-        // Haptic geri bildirim (ViewModel içinde yoksa buraya da eklenebilir)
+        HapticManager.shared.triggerSuccess()
         dismiss()
     }
-}
-
-// MARK: - Preview
-#Preview {
-    AddTaskView(viewModel: TaskViewModel(), isPrivateDefault: false)
 }
