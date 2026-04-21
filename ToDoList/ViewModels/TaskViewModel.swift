@@ -99,8 +99,8 @@ final class TaskViewModel: ObservableObject {
     // MARK: - Görev CRUD İşlemleri
     
     /// Yeni görev ekler.
-    /// ✅ SENIOR FIX: TaskModel init sırası düzeltildi (isCompleted, priority'den önce gelmeli).
-    func addTask(title: String, priority: Priority, date: Date, category: Category?, isPrivate: Bool, isReminderEnabled: Bool = false) {
+    /// ✅ SENIOR FIX: images parametresi eklendi, böylece görev oluşturulurken fotoğraflar da kaydedilecek.
+    func addTask(title: String, priority: Priority, date: Date, category: Category?, isPrivate: Bool, isReminderEnabled: Bool = false, images: [UIImage] = []) {
         let newTask = TaskModel(
             title: title,
             isCompleted: false, // 🎯 İlk sırada bu olmalı
@@ -112,6 +112,11 @@ final class TaskViewModel: ObservableObject {
         
         withAnimation {
             tasks.append(newTask)
+        }
+        
+        // ✨ MEDYA ENTEGRASYONU: Eğer resim seçildiyse, yeni oluşturulan göreve ekle
+        if !images.isEmpty {
+            addImages(to: newTask, images: images)
         }
         
         addXP(amount: XPRewards.newTask)

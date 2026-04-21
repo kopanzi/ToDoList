@@ -2,21 +2,29 @@ import SwiftUI
 import PhotosUI
 
 /// Görev detay ekranında medya öğelerini (Görsel ve Ses) ve aksiyon butonlarını yöneten bileşen.
+/// Senior Notu: Galeri ve Kamera butonları minimal tasarıma geçirildi. Resimlerin üzerine tıklayarak
+/// tam ekran önizleme ve silme (X butonu) özellikleri eklendi.
 struct TaskDetailMediaView: View {
     // MARK: - Properties
     let task: TaskModel
     @ObservedObject var viewModel: TaskViewModel
+    @EnvironmentObject var appearance: AppearanceManager // ✨ Buton renklerini temaya uydurmak için eklendi
     
     /// Galeri seçimi için ana görünümle senkronize çalışan binding
     @Binding var selectedItem: PhotosPickerItem?
     
-    /// Kamera tetikleyicisi
+    /// Aksiyon Tetikleyicileri
     var onCameraTap: () -> Void
+    var onImageTap: (UIImage) -> Void     // ✨ YENİ: Resme tıklanma durumu
+    var onImageDelete: (String) -> Void   // ✨ YENİ: Resim silinme durumu
     
     var body: some View {
+        // ✨ SENIOR FIX: Concurrency/Sendable hatasını önlemek için rengi değere (value type) alıyoruz.
+        let themeAccent = appearance.accentColor
+        
         VStack(alignment: .leading, spacing: 20) {
             
-            // 1. GÖRSEL GALERİSİ (Yatay Şerit)
+            // 1. GÖRSEL GALERİSİ (Yatay Şerit - Silme ve Önizleme Destekli)
             if !task.imageIDs.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Ekler (\(task.imageIDs.count))", systemImage: "paperclip")
@@ -27,13 +35,34 @@ struct TaskDetailMediaView: View {
                         HStack(spacing: 12) {
                             ForEach(task.imageIDs, id: \.self) { id in
                                 if let image = MediaManager.shared.loadImage(id: id) {
-                                    Image(uiImage: image)
-                                        .resizable()
-                                        .scaledToFill()
-                                        .frame(width: 120, height: 120)
-                                        .cornerRadius(12)
-                                        .clipped()
-                                        .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+                                    ZStack(alignment: .topTrailing) {
+                                        // Resim Kutusu
+                                        Image(uiImage: image)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 90, height: 90) // Biraz daha zarif ve toplu
+                                            .cornerRadius(12)
+                                            .clipped()
+                                            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+                                            // ✨ SENIOR FIX: Resme tıklayınca önizlemeyi tetikler
+                                            .onTapGesture {
+                                                HapticManager.shared.triggerLightImpact()
+                                                onImageTap(image)
+                                            }
+                                        
+                                        // ✨ SENIOR FIX: Silme Butonu (X)
+                                        Button(action: {
+                                            HapticManager.shared.triggerMediumImpact()
+                                            onImageDelete(id)
+                                        }) {
+                                            Image(systemName: "minus.circle.fill")
+                                                .font(.system(size: 18))
+                                                .foregroundColor(.red)
+                                                .background(Circle().fill(Color.white).frame(width: 14, height: 14))
+                                        }
+                                        .offset(x: 6, y: -6)
+                                    }
+                                    .padding([.top, .trailing], 6)
                                 }
                             }
                         }
@@ -75,37 +104,36 @@ struct TaskDetailMediaView: View {
                 }
             }
             
-            // 3. AKSİYON BUTONLARI (Galeri & Kamera)
+            // 3. AKSİYON BUTONLARI (Zarif ve Minimal Tasarım)
             HStack(spacing: 15) {
                 // Fotoğraf Galerisi Seçicisi
                 PhotosPicker(selection: $selectedItem, matching: .images) {
-                    mediaButton(title: "Galeri", icon: "photo.on.rectangle")
+                    Label("Galeri", systemImage: "photo.on.rectangle.angled")
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(themeAccent.opacity(0.1))
+                        .foregroundColor(themeAccent)
+                        .cornerRadius(10)
                 }
+                .buttonStyle(.plain)
                 
                 // Kamera Butonu
                 Button(action: {
                     HapticManager.shared.triggerLightImpact()
                     onCameraTap()
                 }) {
-                    mediaButton(title: "Kamera", icon: "camera")
+                    Label("Kamera", systemImage: "camera.fill")
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(themeAccent.opacity(0.1))
+                        .foregroundColor(themeAccent)
+                        .cornerRadius(10)
                 }
+                .buttonStyle(.plain)
             }
         }
-    }
-}
-
-// MARK: - Private Helpers
-private extension TaskDetailMediaView {
-    
-    /// Medya aksiyon butonları için standart tasarım şablonu
-    func mediaButton(title: String, icon: String) -> some View {
-        Label(title, systemImage: icon)
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.secondary.opacity(0.1))
-            .foregroundColor(.primary)
-            .font(.subheadline.bold())
-            .cornerRadius(12)
     }
 }
 
@@ -115,7 +143,10 @@ private extension TaskDetailMediaView {
         task: TaskModel(title: "Test", priority: .medium),
         viewModel: TaskViewModel(),
         selectedItem: .constant(nil),
-        onCameraTap: {}
+        onCameraTap: {},
+        onImageTap: { _ in },
+        onImageDelete: { _ in }
     )
+    .environmentObject(AppearanceManager.shared)
     .padding()
 }

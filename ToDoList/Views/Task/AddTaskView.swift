@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Yeni görev oluşturma formunu yöneten bağımsız View bileşeni.
 /// Senior Notu: Takvimden gelen seçili tarih bilgisini (Context) algılar ve formu ona göre kurar.
+/// Ayrıca Kamera ve Çoklu Galeri (MultiImagePicker) entegrasyonu barındırır.
 struct AddTaskView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: TaskViewModel
@@ -18,6 +19,11 @@ struct AddTaskView: View {
     // 🔔 Hatırlatıcı ve Tarih Durumları
     @State private var isReminderEnabled = false
     @State private var selectedDate: Date
+    
+    // 📸 Medya Durumları (YENİ EKLENDİ)
+    @State private var selectedImages: [UIImage] = []
+    @State private var showCamera = false
+    @State private var showGallery = false
     
     // MARK: - Init
     init(viewModel: TaskViewModel, isPrivateDefault: Bool) {
@@ -50,6 +56,7 @@ struct AddTaskView: View {
                             .submitLabel(.done)
                         
                         Button(action: {
+                            // ✨ FIX: iOS 17 withAnimation sarı uyarısı giderildi
                             withAnimation(.spring()) { isNewTaskPrivate.toggle() }
                         }) {
                             Image(systemName: isNewTaskPrivate ? "lock.fill" : "lock.open")
@@ -66,7 +73,80 @@ struct AddTaskView: View {
                     }
                 } header: { Text("GÖREV TANIMI") }
                 
-                // 🔔 2. ZAMANLAMA VE HATIRLATICI
+                // 📸 2. MEDYA EKLEME (YENİ EKLENDİ)
+                Section {
+                    // ✨ SENIOR FIX: Daha minimal, yan yana zarif buton tasarımı
+                    HStack(spacing: 15) {
+                        Button(action: {
+                            HapticManager.shared.triggerLightImpact()
+                            showCamera = true
+                        }) {
+                            Label("Kamera", systemImage: "camera.fill")
+                                .font(.subheadline.bold())
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(appearance.accentColor.opacity(0.1))
+                                .foregroundColor(appearance.accentColor)
+                                .cornerRadius(10)
+                        }
+                        .buttonStyle(.plain)
+                        
+                        Button(action: {
+                            HapticManager.shared.triggerLightImpact()
+                            showGallery = true
+                        }) {
+                            Label("Galeri", systemImage: "photo.on.rectangle.angled")
+                                .font(.subheadline.bold())
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 10)
+                                .background(appearance.accentColor.opacity(0.1))
+                                .foregroundColor(appearance.accentColor)
+                                .cornerRadius(10)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 8)
+                    
+                    // Seçilen Resimlerin Canlı Önizlemesi
+                    if !selectedImages.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(0..<selectedImages.count, id: \.self) { index in
+                                    ZStack(alignment: .topTrailing) {
+                                        // Resim Kutusu
+                                        Image(uiImage: selectedImages[index])
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 70, height: 70)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+                                        
+                                        // Silme Butonu (X)
+                                        Button(action: {
+                                            HapticManager.shared.triggerLightImpact()
+                                            // ✨ FIX: iOS 17 withAnimation uyarısı
+                                            _ = withAnimation(.spring()) {
+                                                selectedImages.remove(at: index)
+                                            }
+                                        }) {
+                                            Image(systemName: "minus.circle.fill")
+                                                .font(.system(size: 18))
+                                                .foregroundColor(.red)
+                                                .background(Circle().fill(Color.white).frame(width: 14, height: 14))
+                                        }
+                                        .offset(x: 6, y: -6)
+                                    }
+                                    .padding(.top, 6)
+                                    .padding(.trailing, 6)
+                                }
+                            }
+                            .padding(.vertical, 4)
+                            .padding(.leading, 4)
+                        }
+                    }
+                } header: { Text("MEDYA EKLE (OPSİYONEL)") }
+                
+                // 🔔 3. ZAMANLAMA VE HATIRLATICI
                 Section {
                     Toggle(isOn: $isReminderEnabled.animation()) {
                         Label("Hatırlatıcı Ekle", systemImage: "bell.badge.fill")
@@ -85,7 +165,7 @@ struct AddTaskView: View {
                     }
                 } header: { Text("ZAMANLAMA") }
                 
-                // 3. ÖNCELİK VE KATEGORİ
+                // 4. ÖNCELİK VE KATEGORİ
                 Section {
                     Picker("Öncelik", selection: $selectedPriority) {
                         ForEach(Priority.allCases, id: \.self) { priority in
@@ -117,8 +197,20 @@ struct AddTaskView: View {
                         saveTaskAndDismiss()
                     }
                     .bold()
-                    .disabled(newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                    // ✨ SENIOR FIX: Başlık boş olsa bile eğer fotoğraf eklenmişse butonu aktif et!
+                    .disabled(newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty && selectedImages.isEmpty)
                 }
+            }
+            // ✨ MODAL EKRANLARI BURADA TETİKLENİYOR
+            .fullScreenCover(isPresented: $showCamera) {
+                CameraPicker { image in
+                    // ✨ FIX: iOS 17 withAnimation uyarısı
+                    withAnimation { selectedImages.append(image) }
+                }
+                .ignoresSafeArea()
+            }
+            .sheet(isPresented: $showGallery) {
+                MultiImagePicker(selectedImages: $selectedImages, isPresented: $showGallery, limit: 5)
             }
         }
         .presentationDetents([.medium, .large])
@@ -134,21 +226,26 @@ struct AddTaskView: View {
 private extension AddTaskView {
     
     func saveTaskAndDismiss() {
-        let title = newTaskTitle.trimmingCharacters(in: .whitespaces)
+        var title = newTaskTitle.trimmingCharacters(in: .whitespaces)
+        
+        // ✨ SENIOR UX FIX: Sadece fotoğraf çekildiyse ve başlık boş bırakıldıysa otomatik isim atıyoruz.
+        if title.isEmpty && !selectedImages.isEmpty {
+            title = "Fotoğraflı Görev"
+        }
+        
         guard !title.isEmpty else { return }
         
-        // 🎯 SENIOR FIX: init içerisinde selectedDate zaten doğru tarihe kuruluyor.
-        // Eğer kullanıcı hatırlatıcıyı kapatsa bile takvimden seçtiği gün korunmalı.
         let finalDate = selectedDate
         
-        // TaskViewModel'deki addTask imzasına (6 parametre) tam uyumlu çağrı ✅
+        // 🎯 SENIOR FIX: Tüm 7 parametre ViewModel'e gönderiliyor (Resimler dahil)
         viewModel.addTask(
             title: title,
             priority: selectedPriority,
             date: finalDate,
             category: selectedCategory,
             isPrivate: isNewTaskPrivate,
-            isReminderEnabled: isReminderEnabled // Eksik olan parametre eklendi
+            isReminderEnabled: isReminderEnabled,
+            images: selectedImages // 📸 Fotoğraflar bağlandı!
         )
         
         HapticManager.shared.triggerSuccess()
