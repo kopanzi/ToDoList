@@ -35,7 +35,6 @@ final class TaskViewModel: ObservableObject {
     @Published var errorMessage: String? = nil   // UI'da gösterilecek hata veya tebrik mesajları
     
     // MARK: - Servisler (Dependencies)
-    
     private let xpService = XPService.shared
     private let authService = AuthService.shared
     private let mediaManager = MediaManager.shared
@@ -50,15 +49,12 @@ final class TaskViewModel: ObservableObject {
     }
     
     // MARK: - Initialization
-    
     init() {
         loadTasks()
-        // Başlangıçta temayı mevcut görev durumuna göre ayarla
         AppearanceManager.shared.updateAppearance(with: tasks)
     }
     
-    // MARK: - Veri İşlemleri (Data Operations)
-    
+    // MARK: - Veri İşlemleri
     func loadTasks() {
         self.tasks = dataService.loadTasks()
     }
@@ -68,16 +64,14 @@ final class TaskViewModel: ObservableObject {
         reloadWidgets()
     }
     
-    // MARK: - Filtreleme Mantığı (Filtering Logic)
-    
-    /// Görünüm (View) katmanı için filtrelenmiş ve sıralanmış veri sağlar.
+    // MARK: - Filtreleme ve Sıralama
     func getFilteredTasks(category: Category?, showPrivate: Bool, searchText: String) -> [TaskModel] {
         var result = tasks
         
         // 1. Gizlilik Filtresi
         result = result.filter { $0.isPrivate == showPrivate }
         
-        // 2. Kategori Filtresi (Sadece genel görevlerde)
+        // 2. Kategori Filtresi
         if !showPrivate, let category = category {
             result = result.filter { $0.category == category }
         }
@@ -87,24 +81,32 @@ final class TaskViewModel: ObservableObject {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
         
-        // Sıralama: Bitmemiş görevler üstte, tarihe göre yeniden eskiye
+        // ✨ SENIOR FIX: Akıllı Sıralama (Smart Sorting) Algoritması
         return result.sorted {
+            // 1. Kural: Tamamlanmamış görevler her zaman üstte kalır
             if $0.isCompleted != $1.isCompleted {
                 return !$0.isCompleted
             }
+            
+            // 2. Kural: Akıllı Yığılma (Smart Stacking) Önceliği
+            // Gecikmiş rutin görevleri en acil işimizdir, bu yüzden listede en tepeye iğnelenir!
+            let delay0 = $0.delayedCount ?? 0
+            let delay1 = $1.delayedCount ?? 0
+            if delay0 != delay1 && !$0.isCompleted {
+                return delay0 > delay1
+            }
+            
+            // 3. Kural: En son eklenen en üstte görünür
             return $0.createdAt > $1.createdAt
         }
     }
     
     // MARK: - Görev CRUD İşlemleri
-    
-    /// Yeni görev ekler.
-    /// ✅ SENIOR FIX: images parametresi eklendi, böylece görev oluşturulurken fotoğraflar da kaydedilecek.
     func addTask(title: String, priority: Priority, date: Date, category: Category?, isPrivate: Bool, isReminderEnabled: Bool = false, images: [UIImage] = []) {
         let newTask = TaskModel(
             title: title,
-            isCompleted: false, // 🎯 İlk sırada bu olmalı
-            priority: priority,   // 🎯 Sonra bu gelmeli
+            isCompleted: false,
+            priority: priority,
             category: category,
             createdAt: date,
             isPrivate: isPrivate
@@ -114,7 +116,6 @@ final class TaskViewModel: ObservableObject {
             tasks.append(newTask)
         }
         
-        // ✨ MEDYA ENTEGRASYONU: Eğer resim seçildiyse, yeni oluşturulan göreve ekle
         if !images.isEmpty {
             addImages(to: newTask, images: images)
         }
@@ -128,7 +129,6 @@ final class TaskViewModel: ObservableObject {
         hapticManager.triggerLightImpact()
     }
     
-    /// Görevi silmek yerine Çöp Kutusuna (TrashManager) taşır.
     func deleteTask(at offsets: IndexSet) {
         offsets.forEach { index in
             let task = tasks[index]
@@ -139,7 +139,6 @@ final class TaskViewModel: ObservableObject {
         hapticManager.triggerMediumImpact()
     }
     
-    /// Tamamlanan tüm görevleri toplu halde Çöp Kutusuna gönderir.
     func clearCompletedTasks() {
         let completed = tasks.filter { $0.isCompleted }
         guard !completed.isEmpty else { return }
@@ -155,7 +154,6 @@ final class TaskViewModel: ObservableObject {
         hapticManager.triggerHeavyImpact()
     }
 
-    /// Çöp kutusundan geri yüklenen görevi listeye ekler.
     func restoreTask(_ task: TaskModel) {
         withAnimation {
             tasks.append(task)
@@ -164,23 +162,31 @@ final class TaskViewModel: ObservableObject {
         hapticManager.triggerSuccess()
     }
     
-    /// Görevin tamamlanma durumunu değiştirir ve XP hesaplamasını tetikler.
     func toggleCompletion(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].isCompleted.toggle()
             
             let isDone = tasks[index].isCompleted
             
-            // Bildirim iptal (Biten görev hatırlatılmamalı)
             if isDone {
                 NotificationManager.shared.cancelNotification(for: task.id)
+                // ✨ SENIOR FIX 1: Rutin tamamlandıysa alev serisini (Streak) artır!
+                if let rID = task.routineID {
+                    RoutineManager.shared.incrementStreak(for: rID)
+                }
             }
             
             // Dinamik XP hesaplama (Zorluğa göre çarpan uygular)
-            let xpChange = xpService.calculateXP(for: tasks[index], isCompleted: isDone)
+            var xpChange = xpService.calculateXP(for: tasks[index], isCompleted: isDone)
+            
+            // ✨ SENIOR FIX 2: Geri Dönüş (Comeback) Bonusu
+            // Kullanıcı günlerdir ertelediği bir rutin görevini tamamlarsa ekstra XP ile ödüllendirilir.
+            if isDone, let delayCount = tasks[index].delayedCount, delayCount > 1 {
+                xpChange += (delayCount * 10)
+            }
+            
             addXP(amount: xpChange)
             
-            // 🏆 GÜNLÜK 5 GÖREV SERİSİ KONTROLÜ
             if isDone {
                 checkDailyBonus()
                 hapticManager.triggerSuccess()
@@ -192,7 +198,6 @@ final class TaskViewModel: ObservableObject {
     
     private func checkDailyBonus() {
         let calendar = Calendar.current
-        // Bugün bitirilen (isCompleted) görevlerin sayısı
         let todayCompletedCount = tasks.filter {
             $0.isCompleted && calendar.isDateInToday($0.createdAt)
         }.count
@@ -210,16 +215,11 @@ final class TaskViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Gelişmiş Kaydırma Aksiyonları (Swipe)
-    
-    /// Görevi 24 saat sonrasına öteler.
     func postponeTask(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             NotificationManager.shared.cancelNotification(for: task.id)
-            
             if let newDate = Calendar.current.date(byAdding: .day, value: 1, to: tasks[index].createdAt) {
                 tasks[index].createdAt = newDate
-                
                 if !tasks[index].isCompleted {
                     NotificationManager.shared.scheduleNotification(for: tasks[index])
                 }
@@ -228,7 +228,6 @@ final class TaskViewModel: ObservableObject {
         }
     }
     
-    /// Önceliği anında en üst seviyeye çeker.
     func prioritizeTask(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].priority = .urgent
@@ -237,13 +236,11 @@ final class TaskViewModel: ObservableObject {
     }
 
     // MARK: - XP & Rütbe & Güvenlik
-    
     private func addXP(amount: Int) {
         let oldRank = currentRank
         userXP += amount
         if userXP < 0 { userXP = 0 }
         
-        // Rütbe atlama durumunda konfeti patlat
         if currentRank.rawValue > oldRank.rawValue && amount > 0 {
             triggerLevelUpEffect()
         }
@@ -256,16 +253,15 @@ final class TaskViewModel: ObservableObject {
     private func triggerLevelUpEffect() {
         showConfetti = true
         hapticManager.triggerHeavyImpact()
-        // Konfeti etkisini 4 saniye sonra durdur
         DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
             self.showConfetti = false
         }
     }
     
-    /// Biyometrik doğrulama (FaceID) başlatır.
     func authenticate() {
         Task {
             do {
+                // 🛠️ SENIOR FIX: Trailing closure yerine modern Async/Await yapısına geçildi.
                 let success = try await authService.authenticate(reason: "Gizli görevlerinize erişmek için doğrulama yapın.")
                 self.isUnlocked = success
                 if success {
@@ -286,7 +282,6 @@ final class TaskViewModel: ObservableObject {
     }
     
     // MARK: - AI & Medya
-    
     func generateAISuggestions(for task: TaskModel) async -> String? {
         let suggestion = await geminiService.oneriAl(gorevBasligi: task.title)
         return suggestion.isEmpty ? nil : suggestion
@@ -294,7 +289,6 @@ final class TaskViewModel: ObservableObject {
     
     func addImages(to task: TaskModel, images: [UIImage]) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        
         for image in images {
             if let id = mediaManager.saveImage(image) {
                 tasks[index].imageIDs.append(id)
@@ -304,7 +298,6 @@ final class TaskViewModel: ObservableObject {
     }
     
     // MARK: - Widget Reload
-    
     private func reloadWidgets() {
         if let encoded = try? JSONEncoder().encode(tasks) {
             UserDefaults(suiteName: "group.com.kopanzi.yaver")?.set(encoded, forKey: "yaver_tasks_v2")

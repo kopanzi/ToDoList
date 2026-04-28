@@ -31,6 +31,13 @@ struct TaskRowView: View {
             // 2. BAŞLIK VE DETAYLAR
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
+                    // ✨ SENIOR FIX: Eğer görev rutinden geliyorsa Döngü İkonu göster
+                    if task.routineID != nil {
+                        Image(systemName: "repeat")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.blue)
+                    }
+                    
                     Text(task.title)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .strikethrough(task.isCompleted)
@@ -42,6 +49,16 @@ struct TaskRowView: View {
                         Image(systemName: "lock.fill")
                             .font(.system(size: 12))
                             .foregroundColor(.orange)
+                    }
+                    
+                    // ✨ SENIOR FIX: Eğer rutinse ve alevi varsa Streak (Seri) rozetini göster
+                    if let rID = task.routineID,
+                       let streak = RoutineManager.shared.routines.first(where: { $0.id == rID })?.streakCount,
+                       streak > 0 {
+                        Text("🔥 \(streak)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.orange)
+                            .padding(.leading, 2)
                     }
                 }
                 

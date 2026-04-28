@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Görevlerin listelendiği ana ekran. (Stitch Glassmorphism Design)
 /// Senior Notu: Akıllı görev gruplandırma, hızlı filtreleme, çift yönlü kaydırma,
-/// efsanevi "Zen Odak Modu" (Pinch-to-Zoom gesture ile) ve Takvim entegrasyonu içerir.
+/// efsanevi "Zen Odak Modu" (Pinch-to-Zoom gesture ile), Rutin Atlama ve Takvim entegrasyonu içerir.
 struct TaskListView: View {
     // MARK: - Quick Filter Enum
     enum QuickFilter: Equatable {
@@ -76,7 +76,9 @@ struct TaskListView: View {
                             .foregroundColor(.white.opacity(0.5))
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     case .profile:
+                        // ✨ SENIOR FIX: Profil ekranı entegrasyonu
                         ProfileView(taskVM: viewModel)
+                            .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -310,17 +312,30 @@ private extension TaskListView {
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
         
-        // ✨ SAĞA KAYDIRMA (GELİŞMİŞ AKSİYONLAR)
+        // ✨ SAĞA KAYDIRMA (GELİŞMİŞ AKSİYONLAR VE RUTİN DESTEĞİ)
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            Button {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                    viewModel.postponeTask(task: task)
+            // ✨ SENIOR FIX: Eğer görev rutinden geliyorsa "Bugünü Atla" seçeneği çıkar
+            if task.routineID != nil {
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        RoutineManager.shared.skipRoutineTask(task, taskViewModel: viewModel)
+                    }
+                } label: {
+                    Label("Bugünü Atla", systemImage: "forward.end.fill")
                 }
-            } label: {
-                Label("Ertele", systemImage: "clock.arrow.2.circlepath")
+                .tint(.blue)
+            } else {
+                Button {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        viewModel.postponeTask(task: task)
+                    }
+                } label: {
+                    Label("Ertele", systemImage: "clock.arrow.2.circlepath")
+                }
+                .tint(.orange)
             }
-            .tint(.orange)
             
+            // Eğer görev acil değilse acil yapma butonu çıkar
             if task.priority != .urgent {
                 Button {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {

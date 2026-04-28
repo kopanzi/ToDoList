@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 // MARK: - Enums
+/// Görevlerin kategorilerini tanımlar.
 enum Category: String, CaseIterable, Codable, Identifiable {
     case business = "İş"
     case school = "Okul"
@@ -13,6 +14,7 @@ enum Category: String, CaseIterable, Codable, Identifiable {
     
     var id: String { self.rawValue }
     
+    /// Kategoriye özgü sistem ikonları (SF Symbols).
     var icon: String {
         switch self {
         case .business: return "briefcase.fill"
@@ -25,6 +27,7 @@ enum Category: String, CaseIterable, Codable, Identifiable {
         }
     }
     
+    /// Kategoriye özgü renkler.
     var color: Color {
         switch self {
         case .business: return .blue
@@ -38,13 +41,13 @@ enum Category: String, CaseIterable, Codable, Identifiable {
     }
 }
 
+/// Görevlerin öncelik derecelerini tanımlar.
 enum Priority: String, CaseIterable, Codable {
     case low = "Düşük"
     case medium = "Orta"
     case high = "Yüksek"
     case urgent = "Çok Acil"
     
-    // 🛠️ EKSİK OLAN KISIM BURASIYDI:
     var color: Color {
         switch self {
         case .low: return .blue
@@ -56,6 +59,7 @@ enum Priority: String, CaseIterable, Codable {
 }
 
 // MARK: - Model
+/// Temel Görev (To-Do) modeli.
 struct TaskModel: AppEntity {
     var id: String = UUID().uuidString
     var title: String
@@ -68,4 +72,9 @@ struct TaskModel: AppEntity {
     
     var imageIDs: [String] = []
     var audioID: String?
+    
+    // ✨ RUTİN ENTEGRASYONU (Hayalet Çalışan ve Akıllı Yığılma İçin)
+    // Varsayılan değer verildiği için projedeki hiçbir eski kodu bozmaz!
+    var routineID: String? = nil
+    var delayedCount: Int? = 0
 }

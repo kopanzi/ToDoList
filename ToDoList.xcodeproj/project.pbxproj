@@ -50,6 +50,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Models/AppEntity.swift,
+				Models/RoutineModel.swift,
 				Models/TaskModel.swift,
 				Models/Theme.swift,
 			);

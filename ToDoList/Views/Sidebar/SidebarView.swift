@@ -39,6 +39,8 @@ struct SidebarView: View {
                             isSelected: selectedScreen == .tasks && selectedCategory == nil
                         ) { navigate(to: .tasks) }
                         
+                        // 🗑️ BURADAKİ ESKİ "RUTİNLERİM" KODUNU SİLDİK
+                        
                         SidebarMenuItemView(
                             title: "Gizli Kasa",
                             icon: "lock.shield.fill",
@@ -67,17 +69,22 @@ struct SidebarView: View {
                     
                     // ✨ ARAÇLAR (TOOLS) BÖLÜMÜ
                     Group {
+                        // ✨ YENİ YERİ: Rutinlerim Sekmesi Odak Sayacının Üstüne Taşındı!
+                        SidebarMenuItemView(
+                            title: "Rutinlerim",
+                            icon: "repeat.circle.fill",
+                            isSelected: selectedScreen == .routines
+                        ) { navigate(to: .routines) }
+                        
                         SidebarMenuItemView(
                             title: "Odak Sayacı",
                             icon: "timer",
-                            isSelected: false // Tıklanınca başka bir ekrana yönlendirmiyor, modal açıyor
+                            isSelected: false // Tıklanınca modal açıyor
                         ) {
                             HapticManager.shared.triggerLightImpact()
-                            // Önce sidebar'ı yumuşakça kapatıyoruz
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                                 isMenuOpen = false
                             }
-                            // Sidebar kapandıktan hemen sonra sayacı açıyoruz
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                 showingFocusTimer = true
                             }

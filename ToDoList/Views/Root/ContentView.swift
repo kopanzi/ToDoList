@@ -5,6 +5,8 @@ import SwiftUI
 /// gizli ekranlara yetkisiz erişimi katman düzeyinde engeller.
 struct ContentView: View {
     // MARK: - State Management
+    @Environment(\.scenePhase) var scenePhase // ✨ SENIOR FIX: Hayalet çalışanı uyandırmak için uygulama durumunu dinler
+    
     @StateObject private var appearance = AppearanceManager.shared
     @StateObject private var taskVM = TaskViewModel()
     @StateObject private var noteVM = NoteViewModel()
@@ -16,7 +18,8 @@ struct ContentView: View {
     @GestureState private var dragOffset: CGFloat = 0
     
     // Uygulama Rotaları
-    enum ScreenType { case tasks, notes, settings, hiddenTasks, hiddenNotes, trash }
+    // ✨ SENIOR FIX: 'routines' rotası eklendi, Type hataları çözüldü!
+    enum ScreenType { case tasks, notes, settings, hiddenTasks, hiddenNotes, trash, routines }
     
     var body: some View {
         ZStack {
@@ -58,12 +61,19 @@ struct ContentView: View {
             appearance.updateAppearance(with: tasks)
         }
         // ✨ SENIOR FIX: AUTO-LOCK (Kullanıcı sekme değiştirdiğinde kasalar anında kilitlenir!)
-        .onChange(of: selectedScreen) { _,newScreen in
+        .onChange(of: selectedScreen) { _, newScreen in
             if newScreen != .hiddenTasks {
-                taskVM.lockVault() // 🛠️ DÜZELTME: lockSafe() yerine lockVault() kullanıldı
+                taskVM.lockVault()
             }
             if newScreen != .hiddenNotes {
                 noteVM.lockVault()
+            }
+        }
+        // ✨ YENİ: HAYALET ÇALIŞAN (Ghost Worker) UYANDIRMA MOTORU
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                // Kullanıcı uygulamaya her girdiğinde Motor çalışır!
+                RoutineManager.shared.checkRoutines(with: taskVM)
             }
         }
     }
@@ -134,6 +144,14 @@ private extension ContentView {
         switch selectedScreen {
         case .tasks:
             TaskListView(viewModel: taskVM, filterCategory: selectedCategory, onMenuTap: toggleMenu)
+            
+        // ✨ SENIOR FIX: Rutinler sayfası buraya bağlandı, geri tuşu aktif!
+        case .routines:
+            RoutinesView(onBackTap: {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    selectedScreen = .tasks
+                }
+            })
             
         // ✨ GİZLİ GÖREVLER KASASI (KİLİTLİ)
         case .hiddenTasks:
