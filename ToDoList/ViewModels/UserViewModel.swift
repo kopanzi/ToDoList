@@ -2,8 +2,8 @@ import SwiftUI
 import Combine
 
 /// Profil ekranındaki üretkenlik verilerini, AI analizlerini ve ROZET KAZANIMLARINI yöneten ana merkez.
-/// Senior Notu: Gereksiz API çağrılarını önlemek için AI Insight sadece 'manuel yenileme'
-/// veya 'görev durumu değişimi' tetiklediğinde güncellenir ve AppStorage ile önbelleğe (cache) alınır.
+/// Senior Notu: Gemini API bağımlılığı tamamen kaldırılmış, yerine %100 yerel ve
+/// sıfır gecikmeli "AnalysisService" (Kural Tabanlı Motor) entegre edilmiştir.
 @MainActor
 final class UserViewModel: ObservableObject {
     
@@ -11,12 +11,12 @@ final class UserViewModel: ObservableObject {
     @Published var stats: UserStats = .empty
     @Published var achievements: [Achievement] = []
     
-    // Ekranda görünen aktif AI notu
+    // Ekranda görünen aktif analiz notu
     @Published var aiInsightNote: String = ""
     @Published var isLoadingInsight: Bool = false
     
     // 🛠️ SENIOR FIX: Yaver'in verdiği son tavsiyeyi cihaz hafızasına kazıyoruz.
-    // Böylece sayfa her değiştiğinde AI sıfırlanıp unutulmaz.
+    // Böylece sayfa her değiştiğinde analiz sıfırlanıp unutulmaz.
     @AppStorage("lastAIInsight") private var savedAIInsight: String = "Performans verileriniz harika görünüyor! Yaver'den güncel bir tavsiye almak için sayfayı aşağı kaydırarak yenileyin."
     
     // Kullanıcı adını anlık olarak cihaz hafızasından okuyoruz
@@ -25,7 +25,7 @@ final class UserViewModel: ObservableObject {
     // MARK: - Private Dependencies
     private let taskVM: TaskViewModel
     private let statsService = UserStatsService.shared
-    private let geminiService = GeminiService()
+    // 🧹 SENIOR CLEANUP: GeminiService buradan tamamen SİLİNDİ!
     private let hapticManager = HapticManager.shared
     private let dataService = DataService.shared
     
@@ -66,7 +66,7 @@ final class UserViewModel: ObservableObject {
         
         setupSubscriptions()
         
-        // Sadece istatistikleri yükle, API'ye boşuna istek atma
+        // Sadece istatistikleri yükle
         refreshStats(with: taskVM.tasks)
     }
     
@@ -85,7 +85,7 @@ final class UserViewModel: ObservableObject {
     /// Pull-to-Refresh (Aşağı Kaydırarak Yenileme) yapıldığında tetiklenir
     func refreshAll() {
         refreshStats(with: taskVM.tasks)
-        fetchAIInsight() // Manuel yenileme olduğu için AI'ı kesinlikle çalıştır
+        fetchAIInsight() // Manuel yenileme olduğu için analizi kesinlikle çalıştır
         hapticManager.triggerLightImpact()
     }
     
@@ -166,26 +166,35 @@ final class UserViewModel: ObservableObject {
         }
     }
     
-    // MARK: - AI Analytical Insight
+    // MARK: - Yerel Analiz Motoru (Local Analytical Insight)
     func fetchAIInsight() {
         guard !isLoadingInsight, stats.completionRate > 0 else { return }
+        
+        // Uygulamanın yaşadığını hissettirmek için çok kısa bir "yükleniyor" efekti verelim
         isLoadingInsight = true
         
-        Task {
-            let prompt = """
-            Kullanıcının adı \(userName). Mevcut verimlilik istatistikleri:
-            - Tamamlama Oranı: %\(stats.completionRate)
-            - Günlük Seri: \(stats.streakCount) gün
-            - En Verimli Saat Aralığı: \(stats.efficiencyPeakRange)
-            
-            Bu verilere bakarak \(userName)'e 2 cümlelik, motive edici ve bir sonraki adımı için akıllıca bir tavsiye veren analiz yazar mısın? Tırnak kullanma.
-            """
-            
-            let result = await geminiService.oneriAl(gorevBasligi: prompt)
-            
+        // 1. Gerekli istatistikleri Ayrıştır (Parsing)
+        // Zirve saatini bul (Örn: "09:00 - 11:00" -> 9)
+        let peakHourString = stats.efficiencyPeakRange.prefix(2)
+        let peakHour = Int(peakHourString) ?? 12
+        
+        // Kazanılan saati dakikaya çevir (Örn: "2sa" -> 120)
+        let hoursString = stats.timeSaved.replacingOccurrences(of: "sa", with: "")
+        let hours = Int(hoursString) ?? 0
+        let minutesSaved = hours * 60
+        
+        // 2. Yerel Analiz Servisine gönder
+        let result = AnalysisService.shared.generateReport(
+            completionRate: Double(stats.completionRate) / 100.0,
+            streak: stats.streakCount,
+            peakHour: peakHour,
+            timeSavedInMinutes: minutesSaved
+        )
+        
+        // 3. UX Dokunuşu: Gemini kadar bekletmeden ama anında da patlatmadan 0.4 sn sonra yansıt
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             withAnimation(.easeInOut) {
                 self.aiInsightNote = result
-                // 🛠️ SENIOR FIX: Başarılı olan tavsiyeyi cihazın hafızasına kaydet (Cache)
                 self.savedAIInsight = result
                 self.isLoadingInsight = false
             }

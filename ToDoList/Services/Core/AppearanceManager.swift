@@ -2,6 +2,7 @@ import SwiftUI
 import Combine
 
 /// Uygulamanın görsel atmosferini yöneten merkezi motor.
+/// Senior Notu: Gemini/AI bağımlılıkları temizlenmiş, %100 yerel ve senkron çalışan bir yapıya geçilmiştir.
 @MainActor
 final class AppearanceManager: ObservableObject {
     static let shared = AppearanceManager()
@@ -27,19 +28,21 @@ final class AppearanceManager: ObservableObject {
     @AppStorage("mainScreenTheme") var mainScreenTheme: Theme = .blue
     @AppStorage("mainScreenOpacity") var mainScreenOpacity: Double = 0.85
     @AppStorage("isAutoMoodEnabled") var isAutoMoodEnabled: Bool = true
-    @AppStorage("isAIMottoEnabled") var isAIMottoEnabled: Bool = true
     @AppStorage("layoutDensity") var layoutDensity: LayoutDensity = .comfortable
+    
+    // Geriye dönük uyumluluk (Eski adıyla AI Motto, artık Yerel Motto)
+    @AppStorage("isAIMottoEnabled") var isAIMottoEnabled: Bool = true
     
     // MARK: - Dinamik Veriler
     @Published var sidebarMeshColors: [Color] = [.indigo, .purple, .blue]
     @Published var mainMeshColors: [Color] = [.blue, .cyan, .teal]
     
-    // ✨ SENIOR FIX: Uygulama açılır açılmaz bugünün mottosunu anında belleğe alır. (AI beklemez)
+    // ✨ SENIOR FIX: Günlük mottoyu anında yerel bellekten (MottoService) alır.
     @Published var dailyMotto: String = MottoService.shared.getDailyMotto()
     
     @Published var currentMood: MoodService.UserMood = .zen
     
-    // ✅ KRİTİK DÜZELTME: accentColor eklendi
+    // Vurgu Rengi
     var accentColor: Color {
         if isAutoMoodEnabled {
             return mainMeshColors.first ?? Palette.primary
@@ -53,7 +56,7 @@ final class AppearanceManager: ObservableObject {
     func updateAppearance(with tasks: [TaskModel]) {
         let newMood = MoodService.shared.calculateMood(from: tasks)
         
-        // ✨ YENİ MANTIK: Mood'dan bağımsız olarak görev listesi her yenilendiğinde 24 saat kontrolü yap.
+        // Görev listesi her yenilendiğinde mottoyu yerel servisten kontrol et
         if isAIMottoEnabled {
             let newMotto = MottoService.shared.getDailyMotto()
             if self.dailyMotto != newMotto {
@@ -66,13 +69,15 @@ final class AppearanceManager: ObservableObject {
                 if self.currentMood != newMood {
                     withAnimation(.easeInOut(duration: 0.8)) {
                         self.currentMood = newMood
+                        // Mesh renkleri artık sadece Mood'a göre yerel olarak belirleniyor
                         let colors = WallpaperService.shared.getMeshColors(for: newMood)
                         self.sidebarMeshColors = colors
                         self.mainMeshColors = colors
                     }
-                    // AI Motto satırı buradan tamamen SİLİNDİ! (Artık yukarıda senkron olarak çalışıyor)
                 }
-            } else { refreshColors() }
+            } else {
+                refreshColors()
+            }
         }
     }
     

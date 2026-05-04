@@ -1,7 +1,8 @@
 import Foundation
 
 /// Kullanıcının görev geçmişini analiz ederek gerçek üretkenlik istatistiklerini hesaplayan servis.
-/// Senior Notu: Mock (sahte) veriler yerine gerçek algoritmalarla (Peak Time, Streak, Chart Normalization) donatılmıştır.
+/// Senior Notu: İstatistikler artık çok daha hassas (HH:mm) formatında hesaplanır.
+/// 'Zirve Saat' artık kaba bir yuvarlama değil, tüm görevlerin matematiksel ortalamasıdır.
 final class UserStatsService {
     
     static let shared = UserStatsService()
@@ -16,113 +17,111 @@ final class UserStatsService {
         // 1. Bitirme Oranı (%)
         let rate = tasks.isEmpty ? 0 : Int((Double(completedTasks.count) / Double(tasks.count)) * 100)
         
-        // 2. Seri (Streak) Hesabı - Gerçek Algoritma
+        // 2. Seri (Streak) Hesabı
         let streak = calculateStreak(tasks: completedTasks)
         
-        // 3. En Verimli Saat (Peak Efficiency) - Gerçek Algoritma
-        let peakTime = analyzeEfficiencyPeak(tasks: completedTasks)
+        // 3. ✨ HASSAS ZİRVE SAAT (Precision Peak Time)
+        // Artık 16:00 değil, 16:24 gibi net bir ortalama döner.
+        let peakTime = analyzePrecisionPeak(tasks: completedTasks)
         
         // 4. Kazanılan Süre (Tahmini)
-        // Her tamamlanan görevin ortalama 30 dk odak tasarrufu sağladığı varsayımı
         let hoursSaved = (completedTasks.count * 30) / 60
         
-        // 5. Haftalık Duygu Yoğunluğu (Grafik Sütunları İçin Normalize Edilmiş Veri)
+        // 5. Haftalık Duygu Yoğunluğu
         let weeklyIntensity = calculateWeeklyIntensity(tasks: completedTasks)
         
         return UserStats(
             completionRate: rate,
             streakCount: streak,
-            efficiencyTime: peakTime.start,
+            efficiencyTime: peakTime.exact, // Örn: "17:26"
             timeSaved: "\(hoursSaved)sa",
             weeklyMoodIntensity: weeklyIntensity,
-            efficiencyPeakRange: "\(peakTime.start) - \(peakTime.end)"
+            efficiencyPeakRange: "\(peakTime.start) - \(peakTime.end)" // Pencereyi de koruyoruz
         )
     }
     
-    // MARK: - Core Algorithms
+    // MARK: - Precision Logic
     
-    /// Kullanıcının aktif serisini (peş peşe görev tamamladığı gün sayısını) hesaplar.
+    /// Görevlerin tamamlanma anlarını saniye bazında analiz eder ve matematiksel zirveyi bulur.
+    private func analyzePrecisionPeak(tasks: [TaskModel]) -> (exact: String, start: String, end: String) {
+        guard !tasks.isEmpty else { return ("--:--", "--:--", "--:--") }
+        
+        let calendar = Calendar.current
+        var totalMinutesFromMidnight = 0
+        
+        // 1. Tüm görevlerin gün içindeki "gece yarısından itibaren geçen dakika" ortalamasını bul
+        for task in tasks {
+            let targetDate = task.completedAt ?? task.createdAt
+            let components = calendar.dateComponents([.hour, .minute], from: targetDate)
+            let minutes = (components.hour ?? 0) * 60 + (components.minute ?? 0)
+            totalMinutesFromMidnight += minutes
+        }
+        
+        let averageMinutes = totalMinutesFromMidnight / tasks.count
+        
+        // 2. Ortalamayı tekrar saat ve dakikaya çevir
+        let avgHour = averageMinutes / 60
+        let avgMin = averageMinutes % 60
+        
+        let exactTime = String(format: "%02d:%02d", avgHour, avgMin)
+        
+        // 3. Bu saatin etrafında 1 saatlik bir "Optimal Verimlilik Penceresi" oluştur
+        // (Kullanıcıya 'bu saat civarında çalış' demek için)
+        let startHour = (avgHour - 1 + 24) % 24
+        let endHour = (avgHour + 1) % 24
+        
+        let startWindow = String(format: "%02d:00", startHour)
+        let endWindow = String(format: "%02d:00", endHour)
+        
+        return (exactTime, startWindow, endWindow)
+    }
+    
+    // MARK: - Diğer Algoritmalar (Aynen Korundu)
+    
     private func calculateStreak(tasks: [TaskModel]) -> Int {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        
-        // Sadece tamamlanan görevlerin tarihlerini (saat/dakika olmadan) benzersiz bir kümede topla
-        let completedDates = Set(tasks.compactMap {
-            calendar.startOfDay(for: $0.createdAt)
-        })
+        let completedDates = Set(tasks.compactMap { calendar.startOfDay(for: $0.completedAt ?? $0.createdAt) })
         
         var streak = 0
         var currentDate = today
         
-        // 1. Durum: Bugün görev yapmış mı? Yaptıysa geriye doğru gün gün git ve say.
         while completedDates.contains(currentDate) {
             streak += 1
             guard let previousDay = calendar.date(byAdding: .day, value: -1, to: currentDate) else { break }
             currentDate = previousDay
         }
         
-        // 2. Durum: Bugün henüz görev yapmadıysa seriyi sıfırlama, düne bak! (Grace Period)
         if streak == 0 {
             guard let yesterday = calendar.date(byAdding: .day, value: -1, to: today) else { return 0 }
             currentDate = yesterday
-            
             while completedDates.contains(currentDate) {
                 streak += 1
                 guard let previousDay = calendar.date(byAdding: .day, value: -1, to: currentDate) else { break }
                 currentDate = previousDay
             }
         }
-        
         return streak
     }
     
-    /// Görevlerin saatlerini analiz edip kullanıcının en üretken olduğu 2 saatlik periyodu bulur.
-    private func analyzeEfficiencyPeak(tasks: [TaskModel]) -> (start: String, end: String) {
-        guard !tasks.isEmpty else { return ("--:--", "--:--") }
-        
-        let calendar = Calendar.current
-        var hourCounts: [Int: Int] = [:]
-        
-        // Her bir görevin günün hangi saatinde oluşturulup/bittiğini say (Örn: 14:30 -> 14)
-        for task in tasks {
-            let hour = calendar.component(.hour, from: task.createdAt)
-            hourCounts[hour, default: 0] += 1
-        }
-        
-        // En çok frekansa sahip olan saati (Zirve saati) bul
-        if let peakHour = hourCounts.max(by: { $0.value < $1.value })?.key {
-            let startString = String(format: "%02d:00", peakHour)
-            let endString = String(format: "%02d:00", (peakHour + 2) % 24) // 2 saatlik "Optimal Pencere"
-            return (startString, endString)
-        }
-        
-        return ("09:00", "11:00") // Fallback
-    }
-    
-    /// Son 7 gündeki aktiviteyi 0.0 ile 1.0 arasında grafik sütunları (Mesh) için boyutlandırır.
     private func calculateWeeklyIntensity(tasks: [TaskModel]) -> [Double] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         var intensities: [Double] = Array(repeating: 0.0, count: 7)
         
         for task in tasks {
-            let taskDate = calendar.startOfDay(for: task.createdAt)
+            let targetDate = task.completedAt ?? task.createdAt
+            let taskDate = calendar.startOfDay(for: targetDate)
             let components = calendar.dateComponents([.day], from: taskDate, to: today)
-            
-            // Görev son 7 gün içindeyse
             if let daysAgo = components.day, daysAgo >= 0 && daysAgo < 7 {
-                // index 6 = Bugün, index 0 = 6 gün önce
                 let index = 6 - daysAgo
                 intensities[index] += 1.0
             }
         }
         
-        // Grafikteki en uzun sütun 1.0 boyutunda olsun diye matematiksel Normalize işlemi yapıyoruz
         guard let maxCount = intensities.max(), maxCount > 0 else {
-            // Eğer yeni bir kullanıcıysa grafiğin çok ölü durmaması için varsayılan bir ritim dön
             return [0.2, 0.4, 0.3, 0.7, 0.5, 0.8, 0.1]
         }
-        
         return intensities.map { $0 / maxCount }
     }
 }

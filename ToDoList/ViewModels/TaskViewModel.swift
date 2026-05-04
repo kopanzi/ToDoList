@@ -4,7 +4,7 @@ import WidgetKit
 import Combine
 
 /// Uygulamanın görev yönetimini, oyunlaştırma (XP) sistemini ve görsel tetikleyicilerini yöneten ana ViewModel.
-/// Senior Notu: @MainActor ile işaretlenmiştir, böylece tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
+/// Senior Notu: @MainActor ile işaretlenmiştir, tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
 @MainActor
 final class TaskViewModel: ObservableObject {
     
@@ -30,15 +30,32 @@ final class TaskViewModel: ObservableObject {
         }
     }
     
+    // ✨ SENIOR FIX: Ömür Boyu (Lifetime) Sayaçlar
+    @Published var lifetimeAddedTasks: Int = UserDefaults.standard.integer(forKey: "lifetimeAddedTasks") {
+        didSet { UserDefaults.standard.set(lifetimeAddedTasks, forKey: "lifetimeAddedTasks") }
+    }
+    
+    @Published var lifetimeCompletedTasks: Int = UserDefaults.standard.integer(forKey: "lifetimeCompletedTasks") {
+        didSet { UserDefaults.standard.set(lifetimeCompletedTasks, forKey: "lifetimeCompletedTasks") }
+    }
+    
+    // ✨ SENIOR FIX: Silinen görevlerin grafik verilerini yaşatmak için Arşiv Dizisi
+    @Published var archivedTasks: [TaskModel] = [] {
+        didSet {
+            if let encoded = try? JSONEncoder().encode(archivedTasks) {
+                UserDefaults.standard.set(encoded, forKey: "yaver_archived_tasks_v1")
+            }
+        }
+    }
+    
     @Published var isUnlocked: Bool = false      // Gizli Kasa biyometrik kilit durumu
-    @Published var showConfetti: Bool = false     // Rütbe atlama veya büyük ödül kutlaması
+    @Published var showConfetti: Bool = false    // Rütbe atlama veya büyük ödül kutlaması
     @Published var errorMessage: String? = nil   // UI'da gösterilecek hata veya tebrik mesajları
     
     // MARK: - Servisler (Dependencies)
     private let xpService = XPService.shared
     private let authService = AuthService.shared
     private let mediaManager = MediaManager.shared
-    private let geminiService = GeminiService()
     private let hapticManager = HapticManager.shared
     private let dataService = DataService.shared
     
@@ -52,6 +69,18 @@ final class TaskViewModel: ObservableObject {
     init() {
         loadTasks()
         AppearanceManager.shared.updateAppearance(with: tasks)
+        
+        // Mevcut kullanıcılar için sayaçları ilk açılışta senkronize et
+        if lifetimeAddedTasks == 0 && !tasks.isEmpty {
+            lifetimeAddedTasks = tasks.count
+            lifetimeCompletedTasks = tasks.filter { $0.isCompleted }.count
+        }
+        
+        // ✨ Arşivlenmiş istatistik görevlerini yükle
+        if let data = UserDefaults.standard.data(forKey: "yaver_archived_tasks_v1"),
+           let decoded = try? JSONDecoder().decode([TaskModel].self, from: data) {
+            self.archivedTasks = decoded
+        }
     }
     
     // MARK: - Veri İşlemleri
@@ -81,7 +110,7 @@ final class TaskViewModel: ObservableObject {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
         
-        // ✨ SENIOR FIX: Akıllı Sıralama (Smart Sorting) Algoritması
+        // Akıllı Sıralama (Smart Sorting) Algoritması
         return result.sorted {
             // 1. Kural: Tamamlanmamış görevler her zaman üstte kalır
             if $0.isCompleted != $1.isCompleted {
@@ -89,7 +118,6 @@ final class TaskViewModel: ObservableObject {
             }
             
             // 2. Kural: Akıllı Yığılma (Smart Stacking) Önceliği
-            // Gecikmiş rutin görevleri en acil işimizdir, bu yüzden listede en tepeye iğnelenir!
             let delay0 = $0.delayedCount ?? 0
             let delay1 = $1.delayedCount ?? 0
             if delay0 != delay1 && !$0.isCompleted {
@@ -122,6 +150,9 @@ final class TaskViewModel: ObservableObject {
         
         addXP(amount: XPRewards.newTask)
         
+        // ✨ Ömür boyu eklenen görev sayacını artır
+        lifetimeAddedTasks += 1
+        
         if isReminderEnabled {
             NotificationManager.shared.scheduleNotification(for: newTask)
         }
@@ -134,6 +165,16 @@ final class TaskViewModel: ObservableObject {
             let task = tasks[index]
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
+            
+            // ✨ SENIOR FIX: Görev tamamlanmışsa grafikleri korumak için arşive kopyala
+            // (Veritabanı şişmesin diye resimleri ve notu temizleyerek kopyalıyoruz)
+            if task.isCompleted {
+                var archivedTask = task
+                archivedTask.note = ""
+                archivedTask.imageIDs = []
+                archivedTask.audioID = nil
+                archivedTasks.append(archivedTask)
+            }
         }
         tasks.remove(atOffsets: offsets)
         hapticManager.triggerMediumImpact()
@@ -146,6 +187,13 @@ final class TaskViewModel: ObservableObject {
         completed.forEach { task in
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
+            
+            // ✨ SENIOR FIX: Toplu temizlemede de grafikleri korumak için arşive yolla
+            var archivedTask = task
+            archivedTask.note = ""
+            archivedTask.imageIDs = []
+            archivedTask.audioID = nil
+            archivedTasks.append(archivedTask)
         }
         
         withAnimation {
@@ -158,6 +206,9 @@ final class TaskViewModel: ObservableObject {
         withAnimation {
             tasks.append(task)
         }
+        // ✨ Çöpten geri yüklenirse arşivden çıkar ki istatistiklerde çift (duplicate) sayılmasın
+        archivedTasks.removeAll { $0.id == task.id }
+        
         saveAndSync()
         hapticManager.triggerSuccess()
     }
@@ -168,9 +219,12 @@ final class TaskViewModel: ObservableObject {
             
             let isDone = tasks[index].isCompleted
             
+            // Görev tamamlandığında o anın saatini kaydet, iptal edilirse sil
+            tasks[index].completedAt = isDone ? Date() : nil
+            
             if isDone {
                 NotificationManager.shared.cancelNotification(for: task.id)
-                // ✨ SENIOR FIX 1: Rutin tamamlandıysa alev serisini (Streak) artır!
+                // Rutin tamamlandıysa alev serisini (Streak) artır!
                 if let rID = task.routineID {
                     RoutineManager.shared.incrementStreak(for: rID)
                 }
@@ -179,13 +233,19 @@ final class TaskViewModel: ObservableObject {
             // Dinamik XP hesaplama (Zorluğa göre çarpan uygular)
             var xpChange = xpService.calculateXP(for: tasks[index], isCompleted: isDone)
             
-            // ✨ SENIOR FIX 2: Geri Dönüş (Comeback) Bonusu
-            // Kullanıcı günlerdir ertelediği bir rutin görevini tamamlarsa ekstra XP ile ödüllendirilir.
+            // Geri Dönüş (Comeback) Bonusu
             if isDone, let delayCount = tasks[index].delayedCount, delayCount > 1 {
                 xpChange += (delayCount * 10)
             }
             
             addXP(amount: xpChange)
+            
+            // ✨ Ömür boyu tamamlanma sayacını güncelle
+            if isDone {
+                lifetimeCompletedTasks += 1
+            } else if lifetimeCompletedTasks > 0 {
+                lifetimeCompletedTasks -= 1
+            }
             
             if isDone {
                 checkDailyBonus()
@@ -261,7 +321,6 @@ final class TaskViewModel: ObservableObject {
     func authenticate() {
         Task {
             do {
-                // 🛠️ SENIOR FIX: Trailing closure yerine modern Async/Await yapısına geçildi.
                 let success = try await authService.authenticate(reason: "Gizli görevlerinize erişmek için doğrulama yapın.")
                 self.isUnlocked = success
                 if success {
@@ -281,11 +340,7 @@ final class TaskViewModel: ObservableObject {
         isUnlocked = false
     }
     
-    // MARK: - AI & Medya
-    func generateAISuggestions(for task: TaskModel) async -> String? {
-        let suggestion = await geminiService.oneriAl(gorevBasligi: task.title)
-        return suggestion.isEmpty ? nil : suggestion
-    }
+    // MARK: - Medya Yönetimi
     
     func addImages(to task: TaskModel, images: [UIImage]) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }

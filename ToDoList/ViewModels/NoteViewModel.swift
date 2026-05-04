@@ -3,8 +3,8 @@ import SwiftUI
 import Combine
 
 /// Notlar üzerindeki tüm iş mantığını ve medya kayıt süreçlerini yöneten ana ViewModel.
-/// Senior Notu: View katmanının model dizisine ve disk işlemlerine
-/// doğrudan müdahale etmesini engellemek için tam MVVM izolasyonu sağlanmıştır.
+/// Senior Notu: View katmanının model dizisine ve disk işlemlerine doğrudan müdahale etmesini engellemek
+/// için tam MVVM izolasyonu sağlanmıştır. Gemini AI bağımlılıkları tamamen temizlenmiştir.
 @MainActor
 final class NoteViewModel: ObservableObject {
     
@@ -21,7 +21,6 @@ final class NoteViewModel: ObservableObject {
     private let authService = AuthService.shared
     private let mediaManager = MediaManager.shared
     let audioManager = AudioManager.shared // Ses oynatıcıya View'dan doğrudan erişim için
-    private let geminiService = GeminiService()
     private let hapticManager = HapticManager.shared
     
     // MARK: - Init
@@ -176,14 +175,5 @@ final class NoteViewModel: ObservableObject {
     /// Sekme değiştiğinde veya menü kapandığında Gizli Notlar kasasını kilitler.
     func lockVault() {
         isUnlocked = false
-    }
-    
-    // MARK: - AI İşlemleri
-    
-    /// Gemini yapay zekasını kullanarak notu daha profesyonel bir dile çevirir.
-    func polishNoteContent(content: String) async -> String? {
-        let prompt = "Aşağıdaki notu daha profesyonel, akıcı ve etkileyici bir Türkçe ile yeniden yaz. Sadece düzeltilmiş metni döndür: \(content)"
-        let result = await geminiService.oneriAl(gorevBasligi: prompt)
-        return result.isEmpty ? nil : result
     }
 }

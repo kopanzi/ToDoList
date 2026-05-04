@@ -4,6 +4,7 @@ import PhotosUI
 /// Not içeriğini düzenleme ve gelişmiş medya yönetimi ekranı.
 /// Senior Notu: Klavye animasyon çakışmaları ve Presentation hataları,
 /// birbirinden bağımsız @State değişkenleri ve Callback tabanlı CameraPicker ile tamamen çözülmüştür.
+/// Gemini AI bağımlılıkları tamamen temizlenmiştir.
 struct NoteDetailView: View {
     // MARK: - Properties
     let note: NotModel
@@ -13,7 +14,6 @@ struct NoteDetailView: View {
     
     // Düzenleme Durumları
     @State private var editedContent: String = ""
-    @State private var isAnalyzing: Bool = false
     @FocusState private var isEditorFocused: Bool
     
     // Medya States
@@ -33,7 +33,6 @@ struct NoteDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 25) {
                     // 1. ÜST BAŞLIK VE TARİH
-                    // 🛠️ DÜZELTME: 'createdAt' yerine modelin standart mülkü 'tarih' kullanıldı.
                     NoteDetailHeaderView(title: note.baslik, date: note.tarih)
                     
                     // 2. GELİŞMİŞ SES OYNATICI (Slider ve Sarma)
@@ -55,9 +54,6 @@ struct NoteDetailView: View {
                     // 4. İÇERİK EDİTÖRÜ
                     NoteDetailEditorView(content: $editedContent)
                         .focused($isEditorFocused)
-                    
-                    // 5. AI PARLATMA BUTONU
-                    aiPolishButton
                 }
                 .padding()
             }
@@ -164,31 +160,6 @@ private extension NoteDetailView {
             .cornerRadius(20)
         }
     }
-    
-    var aiPolishButton: some View {
-        Button(action: {
-            Task {
-                isAnalyzing = true
-                if let polished = await viewModel.polishNoteContent(content: editedContent) {
-                    withAnimation { editedContent = polished }
-                    HapticManager.shared.triggerSuccess()
-                }
-                isAnalyzing = false
-            }
-        }) {
-            HStack {
-                if isAnalyzing { ProgressView().tint(.white).padding(.trailing, 8) }
-                Image(systemName: "wand.and.stars")
-                Text(isAnalyzing ? "Yaver Düzenliyor..." : "AI ile Metni Düzenle")
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(Color.purple)
-            .foregroundColor(.white)
-            .cornerRadius(15)
-        }
-        .disabled(isAnalyzing || editedContent.isEmpty)
-    }
 
     func formatTime(_ time: Double) -> String {
         let minutes = Int(time) / 60
@@ -198,9 +169,6 @@ private extension NoteDetailView {
 
     func saveChanges() {
         // 🛠️ SENIOR MVVM ÇÖZÜMÜ:
-        // Hata veren o eski "NotModel(createdAt: ...)" kısmını tamamen sildik.
-        // Artık View kendi kendine modeli değiştirmeye çalışmıyor, işlemi tertemiz bir şekilde
-        // NoteViewModel içindeki 'updateNote' fonksiyonuna devrediyor!
         viewModel.updateNote(
             id: note.id,
             newTitle: note.baslik,

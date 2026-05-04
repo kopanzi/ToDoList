@@ -1,12 +1,17 @@
 import SwiftUI
 import PhotosUI
 
-/// Kullanıcının üretkenlik verilerini, AI analizlerini ve başarılarını gösteren ana profil ekranı.
-/// Senior Notu: Rank kartı ana sayfadan taşınmış, detaylandırılmış ve "Kupa Odası" hissiyatı verilmiştir.
+/// Kullanıcının üretkenlik verilerini ve başarılarını gösteren ana profil ekranı.
+/// Senior Notu: Karmaşık istatistikler StatisticsView'a devredilmiş,
+/// bu ekran kullanıcının 'Oyuncu Kimliği' (Gamification) olarak sadeleştirilmiştir.
 struct ProfileView: View {
     // MARK: - Properties
     @StateObject private var userVM: UserViewModel
-    @EnvironmentObject var taskVM: TaskViewModel
+    
+    // ✨ SENIOR FIX 1: @EnvironmentObject yerine @ObservedObject kullanıyoruz.
+    // Çünkü bu View'ı oluştururken taskVM'yi dışarıdan parametre olarak alıyoruz.
+    @ObservedObject var taskVM: TaskViewModel
+    
     @EnvironmentObject var appearance: AppearanceManager
     
     // MARK: - Tıklama ve Yönlendirme (Sheets)
@@ -32,6 +37,8 @@ struct ProfileView: View {
     
     // MARK: - Initialization
     init(taskVM: TaskViewModel) {
+        // ✨ SENIOR FIX 2: taskVM'i doğru bir şekilde atıyoruz.
+        self.taskVM = taskVM
         _userVM = StateObject(wrappedValue: UserViewModel(taskViewModel: taskVM))
     }
     
@@ -43,11 +50,11 @@ struct ProfileView: View {
                 // 1. ÜST HEADER (Avatar, İsim, Ayarlar)
                 profileHeader
                 
-                // 2. ÜRETKENLİK GRİDİ (Gelişmiş Rank + Bento Stats)
-                statGridSection
+                // 2. RÜTBE VE XP KARTI (Oyunlaştırma Merkezi)
+                rankCardSection
                 
-                // 3. GEMINI ANALYTICAL INSIGHT (AI Paneli)
-                GeminiInsightCard(
+                // 3. YAPAY ZEKA ANALİZİ (Yerel Motor)
+                AnalysisInsightCard(
                     userName: userName,
                     stats: userVM.stats,
                     insight: userVM.aiInsightNote,
@@ -198,114 +205,82 @@ private extension ProfileView {
         .padding(.horizontal, 20)
     }
     
-    // MARK: Üretkenlik Gridi ve Rank Kartı
-    var statGridSection: some View {
-        VStack(spacing: 16) {
+    // MARK: Rütbe ve XP Kartı (Oyunlaştırma Merkezi)
+    var rankCardSection: some View {
+        // ✨ SENIOR FIX 3: Rütbe objesini güvenli bir şekilde direkt XPService'den çekiyoruz.
+        // Böylece TaskViewModel'deki yapısal değişiklikler bu sayfayı asla bozmaz.
+        let currentRank = XPService.shared.getCurrentRank(for: taskVM.userXP)
+        
+        return HStack(spacing: 16) {
+            // Halka ve İkon (İç İçe)
+            ZStack {
+                CircularProgressView(
+                    progress: XPService.shared.getProgressPercentage(xp: taskVM.userXP),
+                    color: currentRank.color, // Direkt hesaptan alınan renk
+                    lineWidth: 6,
+                    showText: false
+                )
+                .frame(width: 55, height: 55)
+                
+                Image(systemName: currentRank.icon)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(currentRank.color)
+            }
             
-            // 1. TAM GENİŞLİK RÜTBE KARTI (ÖZEL TASARIM)
-            HStack(spacing: 16) {
-                // Halka ve İkon (İç İçe)
-                ZStack {
-                    CircularProgressView(
-                        progress: XPService.shared.getProgressPercentage(xp: taskVM.userXP),
-                        color: taskVM.currentRank.color, // Halka rengi artık rütbeye göre değişir!
-                        lineWidth: 6,
-                        showText: false
-                    )
-                    .frame(width: 55, height: 55)
-                    
-                    // ✨ SENIOR FIX: Halkanın içindeki Rank İkonu
-                    Image(systemName: taskVM.currentRank.icon)
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(taskVM.currentRank.color)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("MEVCUT RÜTBE")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(currentRank.color.opacity(0.8))
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("MEVCUT RÜTBE")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(taskVM.currentRank.color.opacity(0.8))
-                    
-                    Text(taskVM.currentRank.name)
-                        .font(.system(size: 20, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.5)
-                    
-                    // ✨ SENIOR FIX: Sıradaki Level İbaresi
-                    Text("Sıradaki: \(getNextRankName())")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.5))
-                }
+                Text(currentRank.name)
+                    .font(.system(size: 20, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
                 
-                Spacer()
+                Text("Sıradaki: \(getNextRankName(currentRank: currentRank))")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.5))
+            }
+            
+            Spacer()
+            
+            VStack(alignment: .trailing, spacing: 4) {
+                Text("XP İLERLEMESİ")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(.white.opacity(0.5))
                 
-                VStack(alignment: .trailing, spacing: 4) {
-                    Text("XP İLERLEMESİ")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white.opacity(0.5))
-                    
-                    // ✨ SENIOR FIX: 550 / 650 Şeklinde Gösterim
-                    if let nextThreshold = taskVM.currentRank.nextThreshold {
-                        HStack(alignment: .lastTextBaseline, spacing: 2) {
-                            Text("\(taskVM.userXP)")
-                                .font(.system(size: 18, weight: .black, design: .rounded))
-                                .foregroundColor(.white)
-                            Text("/ \(nextThreshold)")
-                                .font(.system(size: 12, weight: .bold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.5))
-                        }
-                    } else {
-                        // Maksimum seviyeye ulaştıysa sadece Max XP görünür
-                        Text("MAX")
+                if let nextThreshold = currentRank.nextThreshold {
+                    HStack(alignment: .lastTextBaseline, spacing: 2) {
+                        Text("\(taskVM.userXP)")
                             .font(.system(size: 18, weight: .black, design: .rounded))
                             .foregroundColor(.white)
+                        Text("/ \(nextThreshold)")
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(.white.opacity(0.5))
                     }
+                } else {
+                    // Maksimum seviyeye ulaştıysa sadece Max XP görünür
+                    Text("MAX")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .foregroundColor(.white)
                 }
             }
-            .padding(18)
-            .background(Color.white.opacity(0.03).background(.ultraThinMaterial))
-            .cornerRadius(24)
-            .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.05), lineWidth: 1))
-            .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
-            .padding(.horizontal, 20)
-            
-            // 2. BENTO BOX İSTATİSTİKLERİ
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                ProfileStatGrid(
-                    title: "BİTİRME",
-                    value: "%\(userVM.stats.completionRate)",
-                    icon: "checkmark.circle.fill",
-                    color: Color(hex: "0df2cc")
-                )
-                ProfileStatGrid(
-                    title: "SERİ",
-                    value: "\(userVM.stats.streakCount) GÜN",
-                    icon: "flame.fill",
-                    color: .orange
-                )
-                ProfileStatGrid(
-                    title: "ZİRVE SAAT",
-                    value: userVM.stats.efficiencyTime,
-                    icon: "bolt.fill",
-                    color: .blue
-                )
-                ProfileStatGrid(
-                    title: "KAZANÇ",
-                    value: userVM.stats.timeSaved,
-                    icon: "timer",
-                    color: .purple
-                )
-            }
-            .padding(.horizontal, 20)
         }
+        .padding(18)
+        .background(Color.white.opacity(0.03).background(.ultraThinMaterial))
+        .cornerRadius(24)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+        .padding(.horizontal, 20)
     }
     
     // MARK: - Helper Methods
     
     /// Bir sonraki rütbenin adını hesaplar
-    func getNextRankName() -> String {
+    func getNextRankName(currentRank: Rank) -> String {
         let allRanks = Rank.allCases
-        if let currentIndex = allRanks.firstIndex(of: taskVM.currentRank), currentIndex + 1 < allRanks.count {
+        if let currentIndex = allRanks.firstIndex(of: currentRank), currentIndex + 1 < allRanks.count {
             return allRanks[currentIndex + 1].name
         }
         return "Zirvedesin!"

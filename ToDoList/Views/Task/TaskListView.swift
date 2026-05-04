@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Görevlerin listelendiği ana ekran. (Stitch Glassmorphism Design)
 /// Senior Notu: Akıllı görev gruplandırma, hızlı filtreleme, çift yönlü kaydırma,
-/// efsanevi "Zen Odak Modu" (Pinch-to-Zoom gesture ile), Rutin Atlama ve Takvim entegrasyonu içerir.
+/// efsanevi "Zen Odak Modu" (Pinch-to-Zoom gesture ile), Rutin Atlama ve Takvim/İstatistik entegrasyonu içerir.
 struct TaskListView: View {
     // MARK: - Quick Filter Enum
     enum QuickFilter: Equatable {
@@ -67,20 +67,19 @@ struct TaskListView: View {
                                     }
                             )
                     case .schedule:
-                        // ✨ SENIOR FIX: Hazırladığımız efsanevi takvim ekranı buraya entegre edildi!
                         CalendarView(taskVM: viewModel, onMenuTap: onMenuTap)
                             .transition(.opacity)
                     case .stats:
-                        Text("İstatistikler Yakında...")
-                            .font(.headline)
-                            .foregroundColor(.white.opacity(0.5))
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // ✨ SENIOR FIX: Yakında yazısını sildik, İstatistik Şaheserimizi bağladık!
+                        StatisticsView()
+                            .transition(.opacity)
                     case .profile:
-                        // ✨ SENIOR FIX: Profil ekranı entegrasyonu
                         ProfileView(taskVM: viewModel)
                             .transition(.opacity)
                     }
                 }
+                // ✨ SENIOR UX FIX: Sekmeler arası geçişte pürüzsüz animasyon
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
                 // 2. ALT NAVİGASYON BARI
@@ -209,6 +208,7 @@ private extension TaskListView {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively) // ✨ SENIOR UX FIX: Kaydırırken klavye akıllıca gizlenir
     }
     
     // MARK: - Zen Mode Helpers
@@ -501,6 +501,7 @@ private extension TaskListView {
                 .foregroundColor(.white)
                 .font(.system(size: 16))
                 .preferredColorScheme(.dark)
+                .submitLabel(.search) // ✨ SENIOR UX FIX: Klavyedeki butonu 'Ara' yapar
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)

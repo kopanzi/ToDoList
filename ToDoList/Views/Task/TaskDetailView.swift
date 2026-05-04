@@ -1,9 +1,9 @@
 import SwiftUI
 import PhotosUI
 
-/// Görev notlarını düzenleme ve AI özelliklerini yöneten detay ekranı.
+/// Görev notlarını düzenleme özelliklerini yöneten detay ekranı.
 /// Senior Notu: Kamera ve Galeri entegrasyonu MVVM yapısına uygun olarak yeniden bağlandı.
-/// Resim silme ve tam ekran önizleme yetenekleri eklendi.
+/// Resim silme ve tam ekran önizleme yetenekleri eklendi. (Gemini AI bağımlılıkları temizlenmiştir)
 struct TaskDetailView: View {
     // MARK: - Properties
     let task: TaskModel
@@ -52,9 +52,6 @@ struct TaskDetailView: View {
                         }
                     }
                 )
-                
-                // 5. AI ÖNERİSİ
-                aiButton
             }
             .padding()
         }
@@ -97,25 +94,6 @@ struct TaskDetailView: View {
 
 // MARK: - Sub-Views & Helpers
 private extension TaskDetailView {
-    
-    /// Yaver AI Butonu
-    var aiButton: some View {
-        Button(action: {
-            Task {
-                if let suggestion = await viewModel.generateAISuggestions(for: task) {
-                    withAnimation { noteText += "\n\n🤖 AI Planı:\n\(suggestion)" }
-                    HapticManager.shared.triggerSuccess()
-                }
-            }
-        }) {
-            Label("Yaver AI ile Planla", systemImage: "sparkles")
-                .frame(maxWidth: .infinity)
-                .padding()
-                .background(LinearGradient(colors: [.purple, .blue], startPoint: .leading, endPoint: .trailing))
-                .foregroundColor(.white)
-                .cornerRadius(15)
-        }
-    }
     
     /// Kamerayı, klavye açıkken yaşanabilecek animasyon çakışmalarından koruyarak açar.
     func triggerCameraSafe() {
