@@ -2,14 +2,12 @@ import SwiftUI
 import Charts
 
 /// Kullanıcının son 7 günlük görev tamamlama ritmini (Sütun Grafik) gösteren bileşen.
-/// Senior Notu: SwiftUI Charts framework'ü kullanılmış ve açılışta çubukların dipten
-/// yukarı doğru yumuşakça dolmasını sağlayan özel bir 'animationProgress' mantığı kurulmuştur.
+/// Senior Notu: SwiftUI Charts kullanılmış, sütunların üzerine iOS Health tarzı rakamlar (annotation) eklenmiştir.
 struct WeeklyActivityChart: View {
     // MARK: - Properties
     let data: [StatisticsViewModel.DailyActivity]
     @EnvironmentObject var appearance: AppearanceManager
     
-    // Grafiğin açılışında çubukların sıfırdan yükselmesi için çarpan
     @State private var animationProgress: CGFloat = 0.0
     
     var body: some View {
@@ -24,7 +22,6 @@ struct WeeklyActivityChart: View {
                 
                 Spacer()
                 
-                // Toplam Haftalık Görev Sayısı
                 let totalThisWeek = data.reduce(0) { $0 + $1.count }
                 if totalThisWeek > 0 {
                     Text("\(totalThisWeek) Görev")
@@ -38,10 +35,8 @@ struct WeeklyActivityChart: View {
                 ForEach(data) { item in
                     BarMark(
                         x: .value("Gün", item.date, unit: .day),
-                        // ✨ SENIOR FIX: Animasyon çarpanı ile çubuklar sıfırdan yukarı uzar
                         y: .value("Görev", CGFloat(item.count) * animationProgress)
                     )
-                    // Çubuk renkleri temanın ana renginden şeffafa doğru havalı bir degrade olur
                     .foregroundStyle(
                         LinearGradient(
                             colors: [appearance.accentColor, appearance.accentColor.opacity(0.4)],
@@ -50,7 +45,20 @@ struct WeeklyActivityChart: View {
                         )
                     )
                     .cornerRadius(6)
-                    // Sıfır olan (görev yapılmayan) günlerde bile zeminde minik bir iz kalsın
+                    
+                    // ✨ SENIOR FIX: Çubukların üzerinde sayıları iOS tarzı gösterme
+                    .annotation(position: .top, alignment: .center) {
+                        // Sadece sıfırdan büyükse ve animasyon dolmuşsa sayıyı göster
+                        if item.count > 0 && animationProgress > 0.8 {
+                            Text("\(item.count)")
+                                .font(.system(size: 10, weight: .bold, design: .rounded))
+                                .foregroundColor(.white.opacity(0.9))
+                                // Tatlı bir yukarı çıkış animasyonu
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+                    
+                    // Sıfır olan günlerde zeminde minik bir iz
                     .annotation(position: .overlay, alignment: .bottom) {
                         if item.count == 0 {
                             Rectangle()
@@ -62,7 +70,6 @@ struct WeeklyActivityChart: View {
                 }
             }
             .frame(height: 180)
-            // X Ekseni (Pzt, Sal, Çar...)
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day)) { _ in
                     AxisValueLabel(format: .dateTime.weekday(.short))
@@ -70,15 +77,12 @@ struct WeeklyActivityChart: View {
                         .foregroundStyle(.white.opacity(0.5))
                 }
             }
-            // Y Eksenindeki kalabalık sayıları ve çizgileri gizleyip temiz bir görüntü (Clean UI) elde ediyoruz
             .chartYAxis(.hidden)
         }
         .padding(20)
-        // ✨ GLASSMORPHISM
         .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
         .cornerRadius(30)
         
-        // ✨ AÇILIŞ ANİMASYONU
         .onAppear {
             triggerAnimation()
         }
@@ -91,7 +95,6 @@ struct WeeklyActivityChart: View {
 // MARK: - Helpers
 private extension WeeklyActivityChart {
     func triggerAnimation() {
-        // Önce sıfırla, sonra yay (spring) efektiyle doldur
         animationProgress = 0.0
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {

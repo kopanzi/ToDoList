@@ -2,19 +2,24 @@ import SwiftUI
 import Charts
 
 /// Kullanıcının bitirdiği görevlerin kategorilere göre dağılımını gösteren Halka (Donut) Grafik bileşeni.
-/// Senior Notu: Veri olmadığında çökmeyi önleyen boş durum (Empty State) yönetimi ve
-/// SwiftUI Charts ile yüksek performanslı çizim içerir.
+/// Senior Notu: Zaman bazlı filtreleme özelliği eklenmiş olup, seçim anında grafik yaylanarak yenilenir.
 struct CategoryDonutChart: View {
     // MARK: - Properties
     let data: [StatisticsViewModel.CategoryData]
     
-    // Grafiğin açılışında dolma efekti (Animation) vermek için
+    // ✨ YENİ: Üst bileşenden (StatisticsView) gelen filtre bağlantısı
+    @Binding var selectedFilter: StatisticsViewModel.TimeFilter
+    
+    // Tema renklerine uymak için
+    @EnvironmentObject var appearance: AppearanceManager
+    
+    // Grafiğin açılışında ve filtre değişiminde dolma efekti (Animation) vermek için
     @State private var animatedData: [StatisticsViewModel.CategoryData] = []
     
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
             
-            // 1. BAŞLIK
+            // 1. BAŞLIK VE FİLTRE MENÜSÜ
             HStack {
                 Label("KATEGORİ ANALİZİ", systemImage: "chart.pie.fill")
                     .font(.system(size: 12, weight: .bold))
@@ -23,21 +28,39 @@ struct CategoryDonutChart: View {
                 
                 Spacer()
                 
-                // Toplam Kategori Sayısı Rozeti
-                if !data.isEmpty {
-                    Text("\(data.count) Kategori")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white.opacity(0.4))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.1))
-                        .clipShape(Capsule())
+                // ✨ YENİ: Şık Açılır Menü (Drop-down Menu)
+                Menu {
+                    ForEach(StatisticsViewModel.TimeFilter.allCases) { filter in
+                        Button(action: {
+                            HapticManager.shared.triggerLightImpact()
+                            // Seçim değiştiğinde grafik animasyonunu tetiklemek için viewModel otomatik çalışacak
+                            selectedFilter = filter
+                        }) {
+                            HStack {
+                                Text(filter.rawValue)
+                                if selectedFilter == filter {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(selectedFilter.rawValue)
+                        Image(systemName: "line.3.horizontal.decrease.circle.fill")
+                    }
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(appearance.accentColor)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(appearance.accentColor.opacity(0.15))
+                    .clipShape(Capsule())
                 }
             }
             
             // 2. İÇERİK (Grafik veya Boş Durum)
             if data.isEmpty {
-                // Veri yoksa şık bir boş kutu göster
+                // Veri yoksa dinamik metinli boş kutu göster
                 emptyStateView
             } else {
                 HStack(spacing: 20) {
@@ -52,7 +75,7 @@ struct CategoryDonutChart: View {
                         .cornerRadius(6)
                     }
                     .frame(width: 140, height: 140)
-                    // Halkanın içine toplam sayıyı yazma (ZStack kullanmadan Chart overlay ile)
+                    // Halkanın içine toplam sayıyı yazma
                     .chartBackground { proxy in
                         VStack {
                             Text("Toplam")
@@ -104,6 +127,7 @@ struct CategoryDonutChart: View {
         .onAppear {
             animateChart()
         }
+        // ✨ Filtre değiştiğinde datalar güncellenir ve animasyon baştan oynatılır
         .onChange(of: data) { _, _ in
             animateChart()
         }
@@ -125,7 +149,8 @@ private extension CategoryDonutChart {
                     .foregroundColor(.white.opacity(0.2))
             }
             
-            Text("Veri Bekleniyor")
+            // ✨ YENİ: Filtre metnine göre boş durum cümlesi dinamikleşir
+            Text("\(selectedFilter.rawValue) İçin Veri Yok")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(.white.opacity(0.4))
         }
@@ -135,10 +160,10 @@ private extension CategoryDonutChart {
     
     /// Verileri sıfırdan doldurarak grafiğe açılış animasyonu ekler
     func animateChart() {
-        // Önce sıfırla
+        // Önce sayıyı sıfırla ki chart çöksün
         animatedData = data.map { StatisticsViewModel.CategoryData(category: $0.category, count: 0, color: $0.color) }
         
-        // Sonra gerçek değerlerine anime et
+        // Sonra yaylanarak gerçek değerlerine anime et
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             withAnimation(.spring(response: 0.8, dampingFraction: 0.8)) {
                 self.animatedData = self.data

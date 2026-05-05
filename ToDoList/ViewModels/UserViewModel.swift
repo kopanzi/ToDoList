@@ -25,7 +25,6 @@ final class UserViewModel: ObservableObject {
     // MARK: - Private Dependencies
     private let taskVM: TaskViewModel
     private let statsService = UserStatsService.shared
-    // 🧹 SENIOR CLEANUP: GeminiService buradan tamamen SİLİNDİ!
     private let hapticManager = HapticManager.shared
     private let dataService = DataService.shared
     
@@ -38,9 +37,9 @@ final class UserViewModel: ObservableObject {
     init(taskViewModel: TaskViewModel) {
         self.taskVM = taskViewModel
         
-        // 🛠️ SENIOR FIX: Sayfa ilk açıldığında Combine'ın gereksiz tetiklenmesini önlemek için,
-        // başlangıç değerini 0 yerine mevcut tamamlanmış görev sayısı olarak ayarlıyoruz!
-        self.lastCompletedTaskCount = taskViewModel.tasks.filter { $0.isCompleted }.count
+        // ✨ SENIOR FIX 1: Sayfa ilk açıldığında Combine'ın gereksiz tetiklenmesini önlemek için,
+        // başlangıç değerini ekrandaki geçici görevler yerine 'Ömür Boyu' (Lifetime) sayaçtan alıyoruz!
+        self.lastCompletedTaskCount = taskViewModel.lifetimeCompletedTasks
         
         // Uygulama açıldığında hafızadaki son tavsiyeyi ekrana yükle
         self.aiInsightNote = savedAIInsight
@@ -67,38 +66,63 @@ final class UserViewModel: ObservableObject {
         setupSubscriptions()
         
         // Sadece istatistikleri yükle
-        refreshStats(with: taskVM.tasks)
+        refreshStats()
     }
     
     // MARK: - Core Logic
     private func setupSubscriptions() {
+        // ✨ SENIOR FIX 2: Artık sadece aktif görevleri değil, arşivlenmiş (çöpe atılmış)
+        // görevleri de dinliyoruz ki Profil ekranındaki grafikler silinmesin!
         taskVM.$tasks
             .receive(on: RunLoop.main)
-            .sink { [weak self] tasks in
+            .sink { [weak self] _ in
                 guard let self = self else { return }
-                self.refreshStats(with: tasks)
-                self.checkIfNeedsAutoInsight(tasks: tasks)
+                self.refreshStats()
+                self.checkIfNeedsAutoInsight()
+            }
+            .store(in: &cancellables)
+            
+        taskVM.$archivedTasks
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self = self else { return }
+                self.refreshStats()
             }
             .store(in: &cancellables)
     }
     
     /// Pull-to-Refresh (Aşağı Kaydırarak Yenileme) yapıldığında tetiklenir
     func refreshAll() {
-        refreshStats(with: taskVM.tasks)
+        refreshStats()
         fetchAIInsight() // Manuel yenileme olduğu için analizi kesinlikle çalıştır
         hapticManager.triggerLightImpact()
     }
     
-    private func refreshStats(with tasks: [TaskModel]) {
+    private func refreshStats() {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-            self.stats = statsService.calculateStats(from: tasks)
-            self.evaluateAchievements(from: tasks)
+            // ✨ SENIOR FIX 3: İstatistiklerin 'İstatistikler' ekranıyla birebir tutarlı olması için
+            // çöpe atılan ama arşivde tutulan geçmiş görevleri de hesaba katıyoruz!
+            let allTasks = taskVM.tasks + taskVM.archivedTasks
+            self.stats = statsService.calculateStats(from: allTasks)
+            
+            // 🔥 KRİTİK MATEMATİK KİLİDİ: Bitirme oranını ekrandaki azalan görevlere göre değil,
+            // Yaver'in asla silinmeyen ömür boyu (lifetime) sayaçlarına göre eziyoruz.
+            if taskVM.lifetimeAddedTasks > 0 {
+                let safeCompleted = min(taskVM.lifetimeCompletedTasks, taskVM.lifetimeAddedTasks)
+                let safeAdded = max(taskVM.lifetimeAddedTasks, 1)
+                self.stats.completionRate = Int((Double(safeCompleted) / Double(safeAdded)) * 100)
+            } else {
+                self.stats.completionRate = 0
+            }
+            
+            self.evaluateAchievements(from: allTasks) // Başarımları da tüm geçmişe göre değerlendir
         }
     }
     
     /// Sadece yeni bir görev tamamlandığında otomatik tavsiye alır
-    private func checkIfNeedsAutoInsight(tasks: [TaskModel]) {
-        let currentCompletedCount = tasks.filter { $0.isCompleted }.count
+    private func checkIfNeedsAutoInsight() {
+        // ✨ SENIOR FIX 4: Ekrandaki geçici görevler yerine, asla silinmeyen ömür boyu sayacı kullanıyoruz.
+        let currentCompletedCount = taskVM.lifetimeCompletedTasks
         
         // Eğer bitirilen görev sayısı öncekinden fazlaysa Yaver bizi tebrik etsin!
         if currentCompletedCount > lastCompletedTaskCount {
@@ -174,11 +198,9 @@ final class UserViewModel: ObservableObject {
         isLoadingInsight = true
         
         // 1. Gerekli istatistikleri Ayrıştır (Parsing)
-        // Zirve saatini bul (Örn: "09:00 - 11:00" -> 9)
         let peakHourString = stats.efficiencyPeakRange.prefix(2)
         let peakHour = Int(peakHourString) ?? 12
         
-        // Kazanılan saati dakikaya çevir (Örn: "2sa" -> 120)
         let hoursString = stats.timeSaved.replacingOccurrences(of: "sa", with: "")
         let hours = Int(hoursString) ?? 0
         let minutesSaved = hours * 60
@@ -191,7 +213,7 @@ final class UserViewModel: ObservableObject {
             timeSavedInMinutes: minutesSaved
         )
         
-        // 3. UX Dokunuşu: Gemini kadar bekletmeden ama anında da patlatmadan 0.4 sn sonra yansıt
+        // 3. UX Dokunuşu: Yansıtma animasyonu
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
             withAnimation(.easeInOut) {
                 self.aiInsightNote = result

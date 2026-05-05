@@ -25,23 +25,26 @@ struct StatisticsView: View {
                     // HEADER (Başlık Bölümü)
                     headerSection
                     
-                    // ✨ YENİ: YOLCULUK ÖZETİ (Ömür Boyu Sayaçlar ile)
+                    // YOLCULUK ÖZETİ (Ömür Boyu Sayaçlar ile)
                     journeySummaryCard
                     
                     // 1. ÖZET KARTLARI (Bento Box - 4'lü Analiz Kutuları)
                     summaryCards
                     
-                    // 2. HAFTALIK AKTİVİTE (Bar Chart Bileşeni)
+                    // 2. HAFTALIK AKTİVİTE (Eski yerine geri geldi)
                     WeeklyActivityChart(data: statsVM.weeklyData)
                         .padding(.horizontal, 20)
                     
-                    // 3. KATEGORİ DAĞILIMI (Donut Chart Bileşeni)
-                    CategoryDonutChart(data: statsVM.categoryDistribution)
+                    // ✨ 3. ERTELEME YÜZLEŞMESİ GRAFİĞİ (Gereksiz 90 günlük trend yerine)
+                    ProcrastinationChartView(data: statsVM.procrastinationData)
                         .padding(.horizontal, 20)
                     
-                    // 4. ÜRETKENLİK ISI HARİTASI (GitHub Style Heatmap Bileşeni)
-                    HeatmapGridView(data: statsVM.heatmapData)
-                        .padding(.horizontal, 20)
+                    // 4. KATEGORİ DAĞILIMI (Donut Chart Bileşeni - Filtreli)
+                    CategoryDonutChart(
+                        data: statsVM.categoryDistribution,
+                        selectedFilter: $statsVM.categoryTimeFilter
+                    )
+                    .padding(.horizontal, 20)
                     
                     Spacer(minLength: 100)
                 }
@@ -50,8 +53,6 @@ struct StatisticsView: View {
         }
         // Sayfa açıldığında verileri işle
         .onAppear {
-            // ✨ SENIOR FIX: Artık processTasks metoduna sadece aktif görevleri değil,
-            // arşivlenmiş görevleri ve ömür boyu sayaçları da yolluyoruz.
             statsVM.processTasks(
                 activeTasks: taskVM.tasks,
                 archivedTasks: taskVM.archivedTasks,
@@ -68,7 +69,7 @@ struct StatisticsView: View {
                 lifetimeCompleted: taskVM.lifetimeCompletedTasks
             )
         }
-        // ✨ YENİ: Arşiv (çöpe atılan bitmiş görevler) değişirse de grafikleri güncelle
+        // Arşiv (çöpe atılan bitmiş görevler) değişirse de grafikleri güncelle
         .onChange(of: taskVM.archivedTasks) { _, newArchived in
             statsVM.processTasks(
                 activeTasks: taskVM.tasks,
@@ -98,9 +99,7 @@ private extension StatisticsView {
         .padding(.horizontal, 20)
     }
     
-    // ✨ YENİ EKLENEN KISIM: YOLCULUK ÖZETİ KARTI
     var journeySummaryCard: some View {
-        // ✨ SENIOR FIX: Artık silinse de asla sıfırlanmayan "Ömür Boyu" (Lifetime) sayaçları kullanıyoruz!
         let completedCount = taskVM.lifetimeCompletedTasks
         let totalCount = taskVM.lifetimeAddedTasks
         
@@ -141,7 +140,6 @@ private extension StatisticsView {
     }
     
     // ✨ YAVER'İN ZEKA MOTORU: Görev durumuna göre farklı cümleler kurar
-    // SENIOR FIX: @ViewBuilder silindi ve standart Swift 'return' yapısına geçildi.
     func journeyMessageView(completed: Int, total: Int) -> Text {
         if total == 0 {
             return Text("Henüz bir görev eklemedin. Maceraya başlamak için ilk görevini oluştur!")

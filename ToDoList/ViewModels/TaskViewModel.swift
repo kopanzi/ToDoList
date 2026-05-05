@@ -5,6 +5,7 @@ import Combine
 
 /// Uygulamanın görev yönetimini, oyunlaştırma (XP) sistemini ve görsel tetikleyicilerini yöneten ana ViewModel.
 /// Senior Notu: @MainActor ile işaretlenmiştir, tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
+/// Gemini API bağımlılıkları sistemden tamamen temizlenmiş, izole servislere (CalendarService vb.) devredilmiştir.
 @MainActor
 final class TaskViewModel: ObservableObject {
     
@@ -19,6 +20,12 @@ final class TaskViewModel: ObservableObject {
             saveAndSync()
             // Görev listesi değişiminde stres seviyesini ölçüp Mesh Gradient renklerini günceller.
             AppearanceManager.shared.updateAppearance(with: tasks)
+            
+            // ✨ SENIOR FIX 1: Rutin motoru vb. arkadan görev eklerse sayacı otomatik hizala
+            let absoluteTotal = tasks.count + archivedTasks.count
+            if lifetimeAddedTasks < absoluteTotal {
+                lifetimeAddedTasks = absoluteTotal
+            }
         }
     }
     
@@ -36,7 +43,16 @@ final class TaskViewModel: ObservableObject {
     }
     
     @Published var lifetimeCompletedTasks: Int = UserDefaults.standard.integer(forKey: "lifetimeCompletedTasks") {
-        didSet { UserDefaults.standard.set(lifetimeCompletedTasks, forKey: "lifetimeCompletedTasks") }
+        didSet {
+            UserDefaults.standard.set(lifetimeCompletedTasks, forKey: "lifetimeCompletedTasks")
+            
+            // ✨ SENIOR FIX 2: Gerçek Zamanlı (Real-time) Güvenlik Kilidi!
+            // Kullanıcı seri şekilde tik atıp silse bile tamamlanan sayısı ekleneni geçemez.
+            // Geçtiği an (Örn: 9 eklenen, 11 tamamlanan), ekleneni otomatik olarak 11'e eşitler.
+            if lifetimeCompletedTasks > lifetimeAddedTasks {
+                lifetimeAddedTasks = lifetimeCompletedTasks
+            }
+        }
     }
     
     // ✨ SENIOR FIX: Silinen görevlerin grafik verilerini yaşatmak için Arşiv Dizisi
@@ -58,6 +74,8 @@ final class TaskViewModel: ObservableObject {
     private let mediaManager = MediaManager.shared
     private let hapticManager = HapticManager.shared
     private let dataService = DataService.shared
+    private let calendarService = CalendarService.shared
+    // 🧹 SENIOR CLEANUP: GeminiService tamamen kaldırıldı!
     
     // MARK: - XP Ayarları
     private struct XPRewards {
@@ -70,16 +88,32 @@ final class TaskViewModel: ObservableObject {
         loadTasks()
         AppearanceManager.shared.updateAppearance(with: tasks)
         
-        // Mevcut kullanıcılar için sayaçları ilk açılışta senkronize et
-        if lifetimeAddedTasks == 0 && !tasks.isEmpty {
-            lifetimeAddedTasks = tasks.count
-            lifetimeCompletedTasks = tasks.filter { $0.isCompleted }.count
-        }
-        
         // ✨ Arşivlenmiş istatistik görevlerini yükle
         if let data = UserDefaults.standard.data(forKey: "yaver_archived_tasks_v1"),
            let decoded = try? JSONDecoder().decode([TaskModel].self, from: data) {
             self.archivedTasks = decoded
+        }
+        
+        // ✨ SENIOR FIX: Kurşun Geçirmez 'Self-Healing' Matematiği
+        // Ekranda aktif olarak görünen + arşivdeki tüm görevlerin kesin sayısı
+        let absoluteTotalTasks = tasks.count + archivedTasks.count
+        
+        // Ekranda tikli olanlar + arşivdeki tüm görevler (arşivdekilerin hepsi bitmiştir zaten)
+        let absoluteCompletedTasks = tasks.filter { $0.isCompleted }.count + archivedTasks.count
+        
+        // 1. Kural: Ömür boyu eklenenler, en az 'şu an var olan' toplam görev kadar olmalıdır.
+        if lifetimeAddedTasks < absoluteTotalTasks {
+            lifetimeAddedTasks = absoluteTotalTasks
+        }
+        
+        // 2. Kural: Ömür boyu tamamlananlar, en az 'şu an bitmiş olanlar' kadar olmalıdır.
+        if lifetimeCompletedTasks < absoluteCompletedTasks {
+            lifetimeCompletedTasks = absoluteCompletedTasks
+        }
+        
+        // 3. Güvenlik Kilidi: Ne olursa olsun, tamamlanan görev ekleneni geçemez!
+        if lifetimeCompletedTasks > lifetimeAddedTasks {
+            lifetimeAddedTasks = lifetimeCompletedTasks
         }
     }
     
@@ -166,7 +200,7 @@ final class TaskViewModel: ObservableObject {
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
             
-            // ✨ SENIOR FIX: Görev tamamlanmışsa grafikleri korumak için arşive kopyala
+            // ✨ Görev tamamlanmışsa grafikleri korumak için arşive kopyala
             // (Veritabanı şişmesin diye resimleri ve notu temizleyerek kopyalıyoruz)
             if task.isCompleted {
                 var archivedTask = task
@@ -188,7 +222,7 @@ final class TaskViewModel: ObservableObject {
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
             
-            // ✨ SENIOR FIX: Toplu temizlemede de grafikleri korumak için arşive yolla
+            // ✨ Toplu temizlemede de grafikleri korumak için arşive yolla
             var archivedTask = task
             archivedTask.note = ""
             archivedTask.imageIDs = []
@@ -275,11 +309,16 @@ final class TaskViewModel: ObservableObject {
         }
     }
 
+    // ✨ SENIOR FIX: Erteleme Yüzleşmesi (Procrastination) Grafiği İçin
     func postponeTask(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             NotificationManager.shared.cancelNotification(for: task.id)
             if let newDate = Calendar.current.date(byAdding: .day, value: 1, to: tasks[index].createdAt) {
                 tasks[index].createdAt = newDate
+                
+                // KRİTİK EKLENTİ: Erteleme butonuna basıldığında Erteleme Yükü sayacını artırıyoruz
+                tasks[index].delayedCount = (tasks[index].delayedCount ?? 0) + 1
+                
                 if !tasks[index].isCompleted {
                     NotificationManager.shared.scheduleNotification(for: tasks[index])
                 }
@@ -350,6 +389,26 @@ final class TaskViewModel: ObservableObject {
             }
         }
         hapticManager.triggerLightImpact()
+    }
+    
+    // MARK: - Takvim (Calendar) Entegrasyonu
+    
+    /// Görevi Apple'ın yerel takvimine ekler.
+    func addToCalendar(task: TaskModel) {
+        Task {
+            do {
+                let hasAccess = try await calendarService.requestAccess()
+                if hasAccess {
+                    try calendarService.saveTaskToCalendar(task: task)
+                    hapticManager.triggerSuccess()
+                } else {
+                    hapticManager.triggerError()
+                }
+            } catch {
+                print("Takvim hatası: \(error)")
+                hapticManager.triggerError()
+            }
+        }
     }
     
     // MARK: - Widget Reload
