@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Uygulamanın görsel kimliğini belirleyen ana tema yapısı.
 enum Theme: String, CaseIterable, Identifiable, Codable {
-    case indigo, blue, purple, pink, orange, red, green, dark // ✅ dark eklendi
+    case indigo, blue, purple, pink, orange, red, green, dark
     
     var id: String { self.rawValue }
     
@@ -16,7 +16,7 @@ enum Theme: String, CaseIterable, Identifiable, Codable {
         case .orange: return "Gün Batımı"
         case .red: return "Bayrak Kırmızı"
         case .green: return "Doğa Yeşili"
-        case .dark: return "Gece Siyahı" // ✅ eklendi
+        case .dark: return "Gece Siyahı"
         }
     }
     
@@ -30,7 +30,9 @@ enum Theme: String, CaseIterable, Identifiable, Codable {
         case .orange: return .orange
         case .red: return .red
         case .green: return .green
-        case .dark: return .black // ✅ eklendi
+        // ✨ SENIOR UX TIP: Saf siyah (.black) cam efektiyle birleşince her şeyi (gölgeler, blur) yutar.
+        // Color(white: 0.1) kullanarak o premium "Koyu Antrasit" hissini yakalıyoruz.
+        case .dark: return Color(white: 0.1)
         }
     }
     

@@ -1,25 +1,18 @@
 import SwiftUI
 
-/// Ayarlar ekranını yöneten ana orkestratör bileşen.
-/// Senior Notu: Bu View; profil, gelişmiş görünüm ve uygulama bilgilerini
-/// merkezi 'AppearanceManager' ve 'SettingsViewModel' üzerinden koordine eder.
+/// Ayarlar ekranı.
+/// Senior Notu: Mood ve Motto ayarları kaldırıldı. Tamamen manuel stil ve tema seçimine odaklandı.
 struct SettingsView: View {
-    // MARK: - Properties
     @ObservedObject var viewModel: SettingsViewModel
     @ObservedObject var taskVM: TaskViewModel
-    
-    // Global görünüm motoru
     @EnvironmentObject var appearance: AppearanceManager
-    
-    // Sidebar'ı tetiklemek için kullanılan aksiyon
     var onMenuTap: () -> Void
     
-    // MARK: - Body
     var body: some View {
         NavigationStack {
             Form {
-                // 1. PROFİL VE RÜTBE BÖLÜMÜ (Hero Section)
-                Section {
+                // 1. PROFİL BÖLÜMÜ
+                Section("Profil") {
                     SettingsProfileView(
                         rankName: taskVM.currentRank.name,
                         rankIcon: taskVM.currentRank.icon,
@@ -27,75 +20,66 @@ struct SettingsView: View {
                         userXP: taskVM.userXP,
                         progress: XPService.shared.getProgressPercentage(xp: taskVM.userXP)
                     )
-                } header: {
-                    Text("Profil")
                 }
                 
-                // 2. GELİŞMİŞ GÖRÜNÜM AYARLARI (Görünüm Devrimi ✅)
-                // Bu bölüm AI Motto, Mood ve Mesh Gradient kontrollerini içerir.
-                AppearanceSettingsSection()
-                
-                // 3. GENEL UYGULAMA AYARLARI
-                Section("Uygulama") {
-                    // Dil Seçimi
-                    Picker(selection: $viewModel.selectedLanguage) {
-                        Text("Türkçe").tag("tr")
-                        Text("English").tag("en")
-                    } label: {
-                        SettingsOptionRow(
-                            icon: "globe",
-                            title: "Uygulama Dili",
-                            color: .blue,
-                            detail: viewModel.selectedLanguage == "tr" ? "Türkçe" : "English"
-                        )
+                // 2. GÖRÜNÜM AYARLARI (GÜNCELLENDİ ✅)
+                Section("Görünüm") {
+                    // Hedef Seçimi (Ana Ekran mı Sidebar mı?)
+                    Picker("Düzenlenecek Alan", selection: $appearance.editTarget) {
+                        Text("Ana Ekran").tag(AppearanceManager.EditTarget.mainScreen)
+                        Text("Sidebar").tag(AppearanceManager.EditTarget.sidebar)
                     }
-                }
-                
-                // 4. HAKKINDA BÖLÜMÜ
-                Section("Hakkında") {
-                    SettingsOptionRow(
-                        icon: "info.circle.fill",
-                        title: "Versiyon",
-                        color: .gray,
-                        detail: "2.5.0 (UI Revolution)"
-                    )
+                    .pickerStyle(.segmented)
+                    .padding(.vertical, 4)
                     
-                    Link(destination: URL(string: "https://www.apple.com")!) {
-                        SettingsOptionRow(
-                            icon: "person.2.fill",
-                            title: "Geliştirici",
-                            color: .orange,
-                            detail: "Kopanzi"
-                        )
+                    if appearance.editTarget == .mainScreen {
+                        // ANA EKRAN AYARLARI
+                        Picker("Stil", selection: $appearance.mainScreenStyle) {
+                            ForEach(AppearanceManager.BackgroundStyle.allCases) { style in
+                                Text(style.rawValue).tag(style)
+                            }
+                        }
+                        
+                        Picker("Tema Rengi", selection: $appearance.mainScreenTheme) {
+                            ForEach(Theme.allCases) { theme in
+                                Text(theme.rawValue).tag(theme)
+                            }
+                        }
+                        
+                        HStack {
+                            Text("Opaklık")
+                            Slider(value: $appearance.mainScreenOpacity, in: 0.1...1.0)
+                        }
+                    } else {
+                        // SIDEBAR AYARLARI
+                        Picker("Stil", selection: $appearance.sidebarStyle) {
+                            ForEach(AppearanceManager.BackgroundStyle.allCases) { style in
+                                Text(style.rawValue).tag(style)
+                            }
+                        }
+                        
+                        Picker("Tema Rengi", selection: $appearance.sidebarTheme) {
+                            ForEach(Theme.allCases) { theme in
+                                Text(theme.rawValue).tag(theme)
+                            }
+                        }
                     }
+                }
+                
+                // 3. UYGULAMA BİLGİLERİ
+                Section("Hakkında") {
+                    SettingsOptionRow(icon: "info.circle.fill", title: "Versiyon", color: .gray, detail: "3.0.0 (Manual Pro)")
+                    Text("Geliştirici: Kopanzi")
                 }
             }
             .navigationTitle("Ayarlar")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                // 🍔 SOL: Menü Butonu (Sidebar Tetikleyici)
                 ToolbarItem(placement: .topBarLeading) {
-                    Button(action: {
-                        HapticManager.shared.triggerLightImpact()
-                        onMenuTap()
-                    }) {
-                        Image(systemName: "line.3.horizontal")
-                            .font(.title3)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.primary)
+                    Button(action: onMenuTap) {
+                        Image(systemName: "line.3.horizontal").fontWeight(.bold)
                     }
                 }
             }
         }
     }
-}
-
-// MARK: - Preview
-#Preview {
-    SettingsView(
-        viewModel: SettingsViewModel(),
-        taskVM: TaskViewModel(),
-        onMenuTap: {}
-    )
-    .environmentObject(AppearanceManager.shared)
 }

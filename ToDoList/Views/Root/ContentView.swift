@@ -3,6 +3,7 @@ import SwiftUI
 /// Uygulamanın navigasyon ve görsel katman yöneticisi.
 /// Senior Notu: Biyometrik güvenlik kontrolleri (LockScreen) araya girerek,
 /// gizli ekranlara yetkisiz erişimi katman düzeyinde engeller.
+/// Dinamik motto ve duygu durumu özellikleri tamamen kaldırılarak "Manual Pro" tasarıma geçilmiştir.
 struct ContentView: View {
     // MARK: - State Management
     @Environment(\.scenePhase) var scenePhase // ✨ SENIOR FIX: Hayalet çalışanı uyandırmak için uygulama durumunu dinler
@@ -18,12 +19,11 @@ struct ContentView: View {
     @GestureState private var dragOffset: CGFloat = 0
     
     // Uygulama Rotaları
-    // ✨ SENIOR FIX: 'routines' rotası eklendi, Type hataları çözüldü!
     enum ScreenType { case tasks, notes, settings, hiddenTasks, hiddenNotes, trash, routines }
     
     var body: some View {
         ZStack {
-            // 🎨 KATMAN 1: GLOBAL ARKA PLAN (En Altta) ✅
+            // 🎨 KATMAN 1: GLOBAL ARKA PLAN (En Altta - Genellikle Sidebar'ı renklendirir)
             layerBackground(
                 for: appearance.sidebarStyle,
                 meshColors: appearance.sidebarMeshColors,
@@ -31,10 +31,7 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
             
-            // 📝 KATMAN 2: AI MOTTO FİLİGRAN ✅
-            if appearance.isAIMottoEnabled {
-                mottoWatermarkLayer
-            }
+            // 🧹 KATMAN 2: Motto filigranı tamamen kaldırıldı. Artık temiz ve sade bir arayüz var.
             
             // 🍔 KATMAN 3: SIDEBAR İÇERİĞİ
             SidebarView(
@@ -44,7 +41,7 @@ struct ContentView: View {
                 selectedCategory: $selectedCategory
             )
             
-            // 📲 KATMAN 4: ANA PENCERE (İçerik Alanı) ✅
+            // 📲 KATMAN 4: ANA PENCERE (İçerik Alanı)
             mainContentWindow
         }
         .environmentObject(appearance)
@@ -55,10 +52,6 @@ struct ContentView: View {
         .onAppear {
             UITableView.appearance().backgroundColor = .clear
             UICollectionView.appearance().backgroundColor = .clear
-        }
-        // Görevler değiştiğinde görünümü güncelle
-        .onReceive(taskVM.$tasks) { tasks in
-            appearance.updateAppearance(with: tasks)
         }
         // ✨ SENIOR FIX: AUTO-LOCK (Kullanıcı sekme değiştirdiğinde kasalar anında kilitlenir!)
         .onChange(of: selectedScreen) { _, newScreen in
@@ -79,6 +72,7 @@ struct ContentView: View {
     }
 }
 
+// MARK: - View Sub-Parts
 private extension ContentView {
     
     var mainContentWindow: some View {
@@ -86,9 +80,14 @@ private extension ContentView {
             // ANA EKRANIN KENDİ ARKA PLANI
             Group {
                 if appearance.mainScreenStyle == .glass {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(1.0 - appearance.mainScreenOpacity)
+                    // ✨ SENIOR FIX: Camın arkasında Ana Ekranın kendi Mesh Gradient renkleri dönecek!
+                    layerBackground(
+                        for: .glass,
+                        meshColors: appearance.mainMeshColors, // Sidebar'ın değil, Ana Ekranın renkleri
+                        solidColor: appearance.mainScreenTheme.mainColor
+                    )
+                    .opacity(appearance.mainScreenOpacity)
+                    .overlay(Color.clear.background(.ultraThinMaterial)) // Cam efektini üstüne seriyoruz
                 } else {
                     layerBackground(
                         for: appearance.mainScreenStyle,
@@ -105,6 +104,7 @@ private extension ContentView {
             currentScreenView
                 .scrollContentBackground(.hidden)
             
+            // Menü açıkken içeriğe tıklandığında menüyü kapatan kalkan
             if isMenuOpen {
                 Color.black.opacity(0.01)
                     .ignoresSafeArea()
@@ -113,6 +113,7 @@ private extension ContentView {
             
             edgeDragHandler
         }
+        // Sidebar açılış animasyonları
         .cornerRadius(isMenuOpen ? 30 : 0)
         .scaleEffect(isMenuOpen ? 0.84 : 1)
         .offset(x: isMenuOpen ? 250 : 0)
@@ -125,13 +126,11 @@ private extension ContentView {
     func layerBackground(for style: AppearanceManager.BackgroundStyle, meshColors: [Color], solidColor: Color) -> some View {
         switch style {
         case .glass:
-            if #available(iOS 18.0, *) {
-                MeshGradientView(colors: meshColors).blur(radius: 25)
-            } else {
-                Color.clear.background(.ultraThinMaterial)
-            }
+            // ✨ SENIOR FIX: iOS 18 kontrolünü sildik çünkü MeshGradientView zaten
+            // kendi içinde iOS 17 için harika bir yedek (fallback) barındırıyor!
+            MeshGradientView(colors: meshColors).blur(radius: 25)
         case .solid:
-            AppearanceManager.Palette.bgDark
+            solidColor.opacity(0.1) // Saf siyah yerine temanın karanlık ama kendi rengine çalan bir tonu
         case .gradient:
             LinearGradient(colors: meshColors, startPoint: .topLeading, endPoint: .bottomTrailing)
         case .standard:
@@ -145,7 +144,6 @@ private extension ContentView {
         case .tasks:
             TaskListView(viewModel: taskVM, filterCategory: selectedCategory, onMenuTap: toggleMenu)
             
-        // ✨ SENIOR FIX: Rutinler sayfası buraya bağlandı, geri tuşu aktif!
         case .routines:
             RoutinesView(onBackTap: {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -153,7 +151,6 @@ private extension ContentView {
                 }
             })
             
-        // ✨ GİZLİ GÖREVLER KASASI (KİLİTLİ)
         case .hiddenTasks:
             if taskVM.isUnlocked {
                 TaskListView(viewModel: taskVM, showPrivateOnly: true, onMenuTap: toggleMenu)
@@ -164,14 +161,12 @@ private extension ContentView {
                     subtitle: "Size özel görevlere erişmek için Yaver'e kimliğinizi doğrulayın.",
                     onUnlockTap: { taskVM.authenticate() }
                 )
-                // Ekrana girer girmez yüz tanımayı otomatik tetikle
                 .onAppear { taskVM.authenticate() }
             }
             
         case .notes:
             NoteListView(viewModel: noteVM, onMenuTap: toggleMenu)
             
-        // ✨ GİZLİ NOTLAR KASASI (KİLİTLİ)
         case .hiddenNotes:
             if noteVM.isUnlocked {
                 NoteListView(viewModel: noteVM, showPrivateOnly: true, onMenuTap: toggleMenu)
@@ -182,7 +177,6 @@ private extension ContentView {
                     subtitle: "Özel fikirlerinize erişmek için lütfen kimliğinizi doğrulayın.",
                     onUnlockTap: { noteVM.authenticateForPrivateNotes() }
                 )
-                // Ekrana girer girmez yüz tanımayı otomatik tetikle
                 .onAppear { noteVM.authenticateForPrivateNotes() }
             }
             
@@ -192,20 +186,6 @@ private extension ContentView {
         case .trash:
             TrashView(taskVM: taskVM, noteVM: noteVM, onMenuTap: toggleMenu)
         }
-    }
-    
-    var mottoWatermarkLayer: some View {
-        VStack {
-            Spacer()
-            Text(appearance.dailyMotto)
-                .font(.system(size: 38, weight: .black, design: .rounded))
-                .foregroundColor(.white.opacity(0.06))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 40)
-                .padding(.bottom, 140)
-                .rotationEffect(.degrees(-7))
-        }
-        .allowsHitTesting(false)
     }
     
     var edgeDragHandler: some View {

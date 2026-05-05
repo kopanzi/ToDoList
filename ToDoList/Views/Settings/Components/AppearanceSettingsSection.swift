@@ -2,46 +2,18 @@ import SwiftUI
 
 /// HTML tasarımındaki modern Apple estetiğini (Segmented control, stil kartları ve yatay palet)
 /// SwiftUI mimarisine taşıyan gelişmiş ayarlar bölümü.
-/// Senior Notu: Bu bileşen AppearanceManager üzerinden tüm görsel atmosferi yönetir.
+/// Senior Notu: Dinamik mod ve motto özellikleri kaldırılarak %100 manuel kontrol sağlanmıştır.
+/// Eski koddan kalan gereksiz property çağrıları (isAutoMoodEnabled, Palette vb.) temizlendi.
 struct AppearanceSettingsSection: View {
     // MARK: - Properties
     @EnvironmentObject var appearance: AppearanceManager
     
     var body: some View {
         Group {
-            // 1. 🧠 ZEKA VE MOTİVASYON (En Üstte)
-            Section("ZEKA VE MOTİVASYON") {
-                Toggle(isOn: $appearance.isAutoMoodEnabled) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Dinamik Duygu Durumu")
-                            Text("Yoğunluğa göre renkler otomatik değişir.").font(.caption2).foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "brain.head.profile").foregroundColor(.purple)
-                    }
-                }
-                .tint(.purple)
-                .onChange(of: appearance.isAutoMoodEnabled) { _, _ in
-                    HapticManager.shared.triggerSelection()
-                    appearance.refreshColors()
-                }
-                
-                // ✨ SENIOR FIX: Metinler yerel motto mantığına uygun hale getirildi.
-                Toggle(isOn: $appearance.isAIMottoEnabled) {
-                    Label {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Günlük Motto")
-                            Text("Her gün yenilenen motive edici sözler.").font(.caption2).foregroundColor(.secondary)
-                        }
-                    } icon: {
-                        Image(systemName: "quote.opening").foregroundColor(.orange)
-                    }
-                }
-                .tint(.orange)
-            }
+            // 🧹 Eski "ZEKA VE MOTİVASYON" (Dinamik Mood / Motto) bölümü tamamen silindi!
+            // Artık sistem sadece senin manuel olarak belirlediğin renklere itaat edecek.
             
-            // 2. 🎨 GÖRÜNÜM HEDEFİ (Segmented Control) ✅
+            // 1. 🎨 GÖRÜNÜM HEDEFİ (Segmented Control)
             // Kullanıcı hangi alanı düzenlediğini buradan seçer.
             Section {
                 Picker("Düzenlenecek Alan", selection: $appearance.editTarget) {
@@ -53,31 +25,19 @@ struct AppearanceSettingsSection: View {
                 .padding(.vertical, 8)
             }
             
-            // 3. 🌈 RENK PALETİ (Yatay Şerit) ✅
+            // 2. 🌈 RENK PALETİ (Yatay Şerit)
             Section {
                 VStack(alignment: .leading, spacing: 15) {
                     Text("RENK PALETİ").font(.caption.bold()).foregroundColor(.secondary)
                     
-                    if appearance.isAutoMoodEnabled {
-                        // Dinamik mod açıkken kullanıcıyı bilgilendiren şık kutu
-                        HStack(spacing: 12) {
-                            Image(systemName: "wand.and.stars")
-                                .font(.title3)
-                            Text("Dinamik mod aktifken renkler asistanınız tarafından otomatik belirlenir.")
-                                .font(.caption)
-                        }
-                        .foregroundColor(AppearanceManager.Palette.primary)
-                        .padding()
-                        .background(AppearanceManager.Palette.primary.opacity(0.1))
-                        .cornerRadius(12)
-                    } else {
-                        colorPickerList
-                    }
+                    // Dinamik mod kaldırıldığı için artık uyarı kutusuna gerek yok,
+                    // direkt renk paletini gösteriyoruz.
+                    colorPickerList
                 }
                 .padding(.vertical, 8)
             }
             
-            // 4. ✨ STİL SEÇİMİ (Kart Tasarımı) ✅
+            // 3. ✨ STİL SEÇİMİ (Kart Tasarımı)
             Section("STİL") {
                 VStack(spacing: 12) {
                     styleCard(
@@ -104,7 +64,7 @@ struct AppearanceSettingsSection: View {
                 .listRowBackground(Color.clear)
             }
             
-            // 5. 🔍 DERİNLİK (Sadece Ana Ekran için Slider)
+            // 4. 🔍 DERİNLİK (Sadece Ana Ekran için Slider)
             if appearance.editTarget == .mainScreen && appearance.mainScreenStyle != .standard {
                 Section("DERİNLİK") {
                     VStack(alignment: .leading, spacing: 10) {
@@ -114,13 +74,13 @@ struct AppearanceSettingsSection: View {
                             Text("%\(Int((1.0 - appearance.mainScreenOpacity) * 100))").foregroundColor(.secondary).monospacedDigit()
                         }
                         Slider(value: $appearance.mainScreenOpacity, in: 0.5...1.0, step: 0.05)
-                            .tint(AppearanceManager.Palette.primary)
+                            .tint(appearance.accentColor) // ✨ SENIOR FIX: Sildiğimiz Palette yerine aktif temayı kullanıyoruz
                     }
                     .padding(.vertical, 5)
                 }
             }
             
-            // 6. 📏 DÜZEN YOĞUNLUĞU
+            // 5. 📏 DÜZEN YOĞUNLUĞU
             Section("DÜZEN") {
                 Picker("Liste Yoğunluğu", selection: $appearance.layoutDensity) {
                     ForEach(LayoutDensity.allCases) { density in
@@ -151,7 +111,8 @@ private extension AppearanceSettingsSection {
                             } else {
                                 appearance.sidebarTheme = theme
                             }
-                            appearance.refreshColors()
+                            // ✨ SENIOR FIX: refreshColors() çağrısı söküldü çünkü
+                            // AppearanceManager'daki @AppStorage didSet'i artık renkleri otomatik oluşturuyor!
                         }
                     } label: {
                         ZStack {
@@ -197,7 +158,7 @@ private extension AppearanceSettingsSection {
                 // İkon Kutusu
                 ZStack {
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? AppearanceManager.Palette.primary : Color.gray.opacity(0.1))
+                        .fill(isSelected ? appearance.accentColor : Color.gray.opacity(0.1)) // ✨ SENIOR FIX
                         .frame(width: 44, height: 44)
                     
                     Image(systemName: icon)
@@ -216,7 +177,7 @@ private extension AppearanceSettingsSection {
                 // Seçim İşareti
                 if isSelected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(AppearanceManager.Palette.primary)
+                        .foregroundColor(appearance.accentColor) // ✨ SENIOR FIX
                         .font(.title3)
                 }
             }
@@ -225,7 +186,7 @@ private extension AppearanceSettingsSection {
             .cornerRadius(16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16)
-                    .stroke(isSelected ? AppearanceManager.Palette.primary : Color.clear, lineWidth: 2)
+                    .stroke(isSelected ? appearance.accentColor : Color.clear, lineWidth: 2) // ✨ SENIOR FIX
             )
         }
         .buttonStyle(.plain)

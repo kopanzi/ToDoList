@@ -134,16 +134,7 @@ private extension TaskListView {
             VStack(spacing: 24) {
                 customTopBar
                 
-                if filterCategory == nil && !showPrivateOnly && appearance.isAIMottoEnabled {
-                    Text("\"\(appearance.dailyMotto)\"")
-                        .font(.system(size: 15, weight: .medium, design: .serif))
-                        .italic()
-                        .foregroundColor(.white.opacity(0.6))
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(4)
-                        .padding(.horizontal, 30)
-                        .padding(.top, 10)
-                }
+                // 🧹 SENIOR CLEANUP: Eski "Daily Motto" (isAIMottoEnabled) kısımları buradan temizlendi!
                 
                 customSearchBar
                 
@@ -314,7 +305,6 @@ private extension TaskListView {
         
         // ✨ SAĞA KAYDIRMA (GELİŞMİŞ AKSİYONLAR VE RUTİN DESTEĞİ)
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            // ✨ SENIOR FIX: Eğer görev rutinden geliyorsa "Bugünü Atla" seçeneği çıkar
             if task.routineID != nil {
                 Button {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -335,7 +325,6 @@ private extension TaskListView {
                 .tint(.orange)
             }
             
-            // Eğer görev acil değilse acil yapma butonu çıkar
             if task.priority != .urgent {
                 Button {
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
@@ -367,7 +356,7 @@ private extension TaskListView {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 
-                // ✨ ZEN MODU BUTONU (Daha Sakin Tasarım)
+                // ✨ ZEN MODU BUTONU
                 if getZenTask() != nil {
                     Button(action: {
                         HapticManager.shared.triggerHeavyImpact()
@@ -376,20 +365,20 @@ private extension TaskListView {
                         HStack(spacing: 6) {
                             Image(systemName: "target")
                                 .font(.system(size: 14, weight: .bold))
-                                .foregroundColor(.orange) // Sadece ikon dikkat çekici kalsın
+                                .foregroundColor(.orange)
                             
                             Text("Zen")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.6)) // Metin diğerleriyle uyumlu
+                                .foregroundColor(.white.opacity(0.6))
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(
                             Capsule()
-                                .fill(Color.white.opacity(0.04)) // Seçilmemiş arka plan
+                                .fill(Color.white.opacity(0.04))
                                 .background(.ultraThinMaterial.opacity(0.5))
                         )
-                        .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1)) // Seçilmemiş çerçeve
+                        .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
@@ -501,7 +490,7 @@ private extension TaskListView {
                 .foregroundColor(.white)
                 .font(.system(size: 16))
                 .preferredColorScheme(.dark)
-                .submitLabel(.search) // ✨ SENIOR UX FIX: Klavyedeki butonu 'Ara' yapar
+                .submitLabel(.search)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
