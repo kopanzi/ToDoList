@@ -4,7 +4,10 @@ import Combine
 import Charts
 
 /// İstatistik ekranı için ham görev verilerini işleyip grafik formatına getiren beyin.
-/// Senior Notu: Karmaşık tarih gruplama işlemleri 'Performance' odaklı olarak arka planda yapılır.
+/// Senior Notu: O(N*M) karmaşıklığındaki (maliyetli) döngüler, O(N) Dictionary (Sözlük)
+/// haritalamasına dönüştürülerek binlerce görevde bile sıfır gecikme (Lag-free) sağlanmıştır.
+/// UI güncellemeleri için @MainActor garantisi eklenmiştir.
+@MainActor
 final class StatisticsViewModel: ObservableObject {
     
     // MARK: - Plottable Data Types
@@ -15,7 +18,6 @@ final class StatisticsViewModel: ObservableObject {
         let count: Int
     }
     
-    // ✨ YENİ: Erteleme Yüzleşmesi Veri Modeli
     struct ProcrastinationData: Identifiable, Equatable {
         let id = UUID()
         let date: Date
@@ -45,7 +47,6 @@ final class StatisticsViewModel: ObservableObject {
     @Published var heatmapData: [DailyActivity] = []
     @Published var weeklyData: [DailyActivity] = []
     
-    // ✨ YENİ: Erteleme Grafiğini Besleyecek Dizi
     @Published var procrastinationData: [ProcrastinationData] = []
     
     @Published var categoryDistribution: [CategoryData] = []
@@ -92,10 +93,9 @@ final class StatisticsViewModel: ObservableObject {
         }
         
         // 2. Grafikler için Data Üretimi (Geçmiş dahil)
+        // ✨ SENIOR FIX: Tüm grafik dataları tek seferde, kasmadan üretilir.
         self.heatmapData = generateHeatmapData(from: completedTasks)
         self.weeklyData = generateWeeklyData(from: completedTasks)
-        
-        // ✨ YENİ: Erteleme Verilerini Hesapla (Tüm geçmiş dahil)
         self.procrastinationData = generateProcrastinationData(from: allTasks)
         
         // 3. Kategori Dağılımını Güncelle (Seçili Filtreye Göre)
@@ -134,52 +134,77 @@ final class StatisticsViewModel: ObservableObject {
         self.categoryDistribution = generateCategoryData(from: filteredTasks)
     }
     
-    // MARK: - Generators
+    // MARK: - Senior High-Performance Generators
     
-    // ✨ YENİ: Zıt Yönlü Çubuklar için Başarı vs Erteleme Analizi
+    /// ✨ SENIOR FIX: Zıt Yönlü Çubuklar için Başarı vs Erteleme Analizi (O(N) Optimizasyonu)
     private func generateProcrastinationData(from allTasks: [TaskModel]) -> [ProcrastinationData] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         
-        // Son 7 günü tarıyoruz (Haftalık yüzleşme en idealidir)
+        // Hızlandırma: Görevleri önceden tarihe göre grupla (Dictionary Lookup - O(1))
+        var dailyStats: [Date: (completed: Int, delayed: Int)] = [:]
+        
+        for task in allTasks {
+            let targetDate = task.completedAt ?? task.createdAt
+            let startOfDay = calendar.startOfDay(for: targetDate)
+            
+            var current = dailyStats[startOfDay, default: (0, 0)]
+            if task.isCompleted {
+                current.completed += 1
+            }
+            if let delayed = task.delayedCount, delayed > 0 {
+                current.delayed += delayed
+            }
+            dailyStats[startOfDay] = current
+        }
+        
+        // Son 7 günü Dictionary'den (Sözlükten) anında çek (Eski hali gibi defalarca .filter yapmaz)
         return (0..<7).map { i in
             let date = calendar.date(byAdding: .day, value: -i, to: today)!
-            
-            // O gün bitirilen zaferler
-            let completedCount = allTasks.filter {
-                $0.isCompleted && calendar.isDate($0.completedAt ?? $0.createdAt, inSameDayAs: date)
-            }.count
-            
-            // O günün sırtındaki "Erteleme Yükü" (O güne ait aktif/pasif tüm görevlerin gecikme maliyeti)
-            let delayedCount = allTasks.filter {
-                calendar.isDate($0.completedAt ?? $0.createdAt, inSameDayAs: date)
-            }.reduce(0) { $0 + ($1.delayedCount ?? 0) }
-            
-            return ProcrastinationData(date: date, completed: completedCount, delayed: delayedCount)
+            let stats = dailyStats[date, default: (0, 0)]
+            return ProcrastinationData(date: date, completed: stats.completed, delayed: stats.delayed)
         }.reversed()
     }
     
+    /// ✨ SENIOR FIX: Isı Haritası Veri Üretimi (O(N) Optimizasyonu)
     private func generateHeatmapData(from tasks: [TaskModel]) -> [DailyActivity] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
-        var data: [DailyActivity] = []
         
-        // Son 90 günü tara
+        // Görevleri tarihe göre sayıp Dictionary'de (Sözlükte) tutuyoruz
+        var dailyCounts: [Date: Int] = [:]
+        for task in tasks {
+            let targetDate = task.completedAt ?? task.createdAt
+            let startOfDay = calendar.startOfDay(for: targetDate)
+            dailyCounts[startOfDay, default: 0] += 1
+        }
+        
+        var data: [DailyActivity] = []
+        // 90 gün boyunca sadece Sözlük'ten değer okuyoruz (Çok hızlıdır)
         for i in 0..<90 {
             if let date = calendar.date(byAdding: .day, value: -i, to: today) {
-                let count = tasks.filter { calendar.isDate($0.completedAt ?? $0.createdAt, inSameDayAs: date) }.count
+                let count = dailyCounts[date, default: 0]
                 data.append(DailyActivity(date: date, count: count))
             }
         }
         return data.reversed()
     }
     
+    /// ✨ SENIOR FIX: Haftalık Veri Üretimi
     private func generateWeeklyData(from tasks: [TaskModel]) -> [DailyActivity] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
+        
+        var dailyCounts: [Date: Int] = [:]
+        for task in tasks {
+            let targetDate = task.completedAt ?? task.createdAt
+            let startOfDay = calendar.startOfDay(for: targetDate)
+            dailyCounts[startOfDay, default: 0] += 1
+        }
+        
         return (0..<7).map { i in
             let date = calendar.date(byAdding: .day, value: -i, to: today)!
-            let count = tasks.filter { calendar.isDate($0.completedAt ?? $0.createdAt, inSameDayAs: date) }.count
+            let count = dailyCounts[date, default: 0]
             return DailyActivity(date: date, count: count)
         }.reversed()
     }

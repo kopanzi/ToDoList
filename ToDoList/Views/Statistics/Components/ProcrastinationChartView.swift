@@ -4,6 +4,7 @@ import Charts
 /// Kullanıcının bitirdiği görevler (Başarı) ile ertelediği görevleri (Yük) karşılaştıran interaktif grafik.
 /// Senior Notu: Akışkanlık sorunlarını çözmek için 'Magnetic Snapping' algoritması ve
 /// iOS Health tarzı 'Selection Overlay' (Vurgu Katmanı) entegre edilmiştir.
+/// Tüm statik (.white / .black) renkler Adaptive (.primary / .secondary) olarak güncellenmiştir.
 struct ProcrastinationChartView: View {
     // MARK: - Properties
     let data: [StatisticsViewModel.ProcrastinationData]
@@ -39,7 +40,8 @@ struct ProcrastinationChartView: View {
                 HStack {
                     Label("ERTELEME YÜZLEŞMESİ", systemImage: "scale.3d")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
+                        // ✨ SENIOR FIX: Aydınlık/Karanlık moda tam uyum
+                        .foregroundColor(.secondary)
                         .tracking(1)
                     
                     Spacer()
@@ -83,7 +85,8 @@ struct ProcrastinationChartView: View {
                 // Sıfır Çizgisi (Dünya Ekseni)
                 RuleMark(y: .value("Sıfır", 0))
                     .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5]))
-                    .foregroundStyle(.white.opacity(0.2))
+                    // ✨ SENIOR FIX: .white yerine Adaptive
+                    .foregroundStyle(Color.primary.opacity(0.2))
                 
                 // ✨ SEÇİLEN ALAN VURGUSU (Selection Background)
                 // Apple Health tarzı; sütunun arkasında şık bir gölge katmanı
@@ -92,7 +95,8 @@ struct ProcrastinationChartView: View {
                         xStart: .value("Başlangıç", Calendar.current.date(byAdding: .hour, value: -12, to: selected.date)!),
                         xEnd: .value("Bitiş", Calendar.current.date(byAdding: .hour, value: 12, to: selected.date)!)
                     )
-                    .foregroundStyle(.white.opacity(0.05))
+                    // ✨ SENIOR FIX: .white yerine Adaptive arka plan izi
+                    .foregroundStyle(Color.primary.opacity(0.05))
                     .zIndex(-1) // Çubukların arkasında kalsın
                     
                     // Dikey Kılavuz Çizgi
@@ -116,7 +120,8 @@ struct ProcrastinationChartView: View {
                 AxisMarks(values: .stride(by: .day)) { _ in
                     AxisValueLabel(format: .dateTime.weekday(.short))
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.5))
+                        // ✨ SENIOR FIX: .white yerine .secondary
+                        .foregroundStyle(Color.secondary)
                 }
             }
             .chartYAxis {
@@ -125,7 +130,8 @@ struct ProcrastinationChartView: View {
                         if let intValue = value.as(Int.self) {
                             Text("\(abs(intValue))")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.3))
+                                // ✨ SENIOR FIX: .white yerine .secondary
+                                .foregroundStyle(Color.secondary.opacity(0.8))
                         }
                     }
                 }
@@ -140,7 +146,8 @@ struct ProcrastinationChartView: View {
             }
         }
         .padding(24)
-        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive UI)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(32)
         .onAppear { triggerAnimation() }
         // ✨ MIKNATIS ALGORİTMASI (Magnetic Snapping Logic)
@@ -182,7 +189,8 @@ private extension ProcrastinationChartView {
         VStack(alignment: .leading, spacing: 6) {
             Text(formatDateShort(item.date))
                 .font(.system(size: 10, weight: .black))
-                .foregroundColor(.white.opacity(0.4))
+                // ✨ SENIOR FIX: .white yerine Adaptive .secondary
+                .foregroundColor(.secondary)
                 .textCase(.uppercase)
             
             HStack(spacing: 16) {
@@ -192,10 +200,12 @@ private extension ProcrastinationChartView {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Color(hex: "0a0a0a").opacity(0.9).background(.ultraThinMaterial))
+        // ✨ SENIOR FIX: Sabit Hex siyah yerine Sistem Arka Planına tam uyumlu material
+        .background(Color(uiColor: .systemBackground).opacity(0.9).background(.regularMaterial))
         .cornerRadius(14)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.1), lineWidth: 1))
-        .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+        // Adaptive şık gölge
+        .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: 6)
         .padding(.bottom, 12)
         .transition(.asymmetric(insertion: .scale(scale: 0.9).combined(with: .opacity), removal: .opacity))
     }
@@ -207,7 +217,8 @@ private extension ProcrastinationChartView {
                 .foregroundColor(color)
             Text("\(value)")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                // ✨ SENIOR FIX: .white yerine .primary
+                .foregroundColor(.primary)
         }
     }
     
@@ -216,7 +227,8 @@ private extension ProcrastinationChartView {
             Circle().fill(color).frame(width: 8, height: 8)
             Text(title)
                 .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.white.opacity(0.5))
+                // ✨ SENIOR FIX: .white yerine .secondary
+                .foregroundColor(.secondary)
         }
     }
     

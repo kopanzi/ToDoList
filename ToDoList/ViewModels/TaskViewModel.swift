@@ -5,11 +5,11 @@ import Combine
 
 /// Uygulamanın görev yönetimini, oyunlaştırma (XP) sistemini ve görsel tetikleyicilerini yöneten ana ViewModel.
 /// Senior Notu: @MainActor ile işaretlenmiştir, tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
-/// Gemini API bağımlılıkları sistemden tamamen temizlenmiş, izole servislere (CalendarService vb.) devredilmiştir.
+/// Veri kayıplarını önlemek için AppGroup ve UserDefaults işlemleri 'do-catch' ile koruma altına alınmıştır.
 @MainActor
 final class TaskViewModel: ObservableObject {
     
-    // MARK: - Published Properties
+    // MARK: - Published Properties (UI State)
     
     /// Takvimden görev eklerken kullanılan geçici tarih tutucu
     @Published var defaultAdditionDate: Date? = nil
@@ -18,10 +18,11 @@ final class TaskViewModel: ObservableObject {
     @Published var tasks: [TaskModel] = [] {
         didSet {
             saveAndSync()
-            // Görev listesi değişiminde stres seviyesini ölçüp Mesh Gradient renklerini günceller.
+            
+            // Legacy uyumluluk: Tema manuel olsa bile ViewModel'in çökmemesi için tetikleyiciyi koruyoruz.
             AppearanceManager.shared.updateAppearance(with: tasks)
             
-            // ✨ SENIOR FIX 1: Rutin motoru vb. arkadan görev eklerse sayacı otomatik hizala
+            // Rutin motoru arkadan görev eklerse sayacı otomatik hizala
             let absoluteTotal = tasks.count + archivedTasks.count
             if lifetimeAddedTasks < absoluteTotal {
                 lifetimeAddedTasks = absoluteTotal
@@ -37,7 +38,8 @@ final class TaskViewModel: ObservableObject {
         }
     }
     
-    // ✨ SENIOR FIX: Ömür Boyu (Lifetime) Sayaçlar
+    // MARK: - Ömür Boyu (Lifetime) Sayaçlar
+    
     @Published var lifetimeAddedTasks: Int = UserDefaults.standard.integer(forKey: "lifetimeAddedTasks") {
         didSet { UserDefaults.standard.set(lifetimeAddedTasks, forKey: "lifetimeAddedTasks") }
     }
@@ -46,27 +48,22 @@ final class TaskViewModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(lifetimeCompletedTasks, forKey: "lifetimeCompletedTasks")
             
-            // ✨ SENIOR FIX 2: Gerçek Zamanlı (Real-time) Güvenlik Kilidi!
-            // Kullanıcı seri şekilde tik atıp silse bile tamamlanan sayısı ekleneni geçemez.
-            // Geçtiği an (Örn: 9 eklenen, 11 tamamlanan), ekleneni otomatik olarak 11'e eşitler.
+            // Gerçek Zamanlı Güvenlik Kilidi: Tamamlanan sayısı, ekleneni geçemez!
             if lifetimeCompletedTasks > lifetimeAddedTasks {
                 lifetimeAddedTasks = lifetimeCompletedTasks
             }
         }
     }
     
-    // ✨ SENIOR FIX: Silinen görevlerin grafik verilerini yaşatmak için Arşiv Dizisi
+    /// Silinen görevlerin istatistik grafiklerinde yaşamasını sağlayan arşiv dizisi
     @Published var archivedTasks: [TaskModel] = [] {
-        didSet {
-            if let encoded = try? JSONEncoder().encode(archivedTasks) {
-                UserDefaults.standard.set(encoded, forKey: "yaver_archived_tasks_v1")
-            }
-        }
+        didSet { saveArchivedTasks() }
     }
     
+    // MARK: - UI Tetikleyicileri
     @Published var isUnlocked: Bool = false      // Gizli Kasa biyometrik kilit durumu
     @Published var showConfetti: Bool = false    // Rütbe atlama veya büyük ödül kutlaması
-    @Published var errorMessage: String? = nil   // UI'da gösterilecek hata veya tebrik mesajları
+    @Published var errorMessage: String? = nil   // UI'da gösterilecek hata mesajları
     
     // MARK: - Servisler (Dependencies)
     private let xpService = XPService.shared
@@ -75,7 +72,6 @@ final class TaskViewModel: ObservableObject {
     private let hapticManager = HapticManager.shared
     private let dataService = DataService.shared
     private let calendarService = CalendarService.shared
-    // 🧹 SENIOR CLEANUP: GeminiService tamamen kaldırıldı!
     
     // MARK: - XP Ayarları
     private struct XPRewards {
@@ -87,39 +83,51 @@ final class TaskViewModel: ObservableObject {
     init() {
         loadTasks()
         AppearanceManager.shared.updateAppearance(with: tasks)
-        
-        // ✨ Arşivlenmiş istatistik görevlerini yükle
-        if let data = UserDefaults.standard.data(forKey: "yaver_archived_tasks_v1"),
-           let decoded = try? JSONDecoder().decode([TaskModel].self, from: data) {
-            self.archivedTasks = decoded
+        loadArchivedTasks()
+        validateLifetimeCounters()
+    }
+    
+    // MARK: - Veri Yükleme & Doğrulama (Self-Healing)
+    
+    private func loadTasks() {
+        self.tasks = dataService.loadTasks()
+    }
+    
+    private func loadArchivedTasks() {
+        guard let data = UserDefaults.standard.data(forKey: "yaver_archived_tasks_v1") else { return }
+        do {
+            self.archivedTasks = try JSONDecoder().decode([TaskModel].self, from: data)
+        } catch {
+            print("🛑 Arşiv Yükleme Hatası: \(error.localizedDescription)")
+            self.archivedTasks = []
         }
-        
-        // ✨ SENIOR FIX: Kurşun Geçirmez 'Self-Healing' Matematiği
-        // Ekranda aktif olarak görünen + arşivdeki tüm görevlerin kesin sayısı
+    }
+    
+    private func saveArchivedTasks() {
+        do {
+            let encoded = try JSONEncoder().encode(archivedTasks)
+            UserDefaults.standard.set(encoded, forKey: "yaver_archived_tasks_v1")
+        } catch {
+            print("🛑 Arşiv Kaydetme Hatası: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Veri bozulmalarına karşı sayaçları onaran matematiksel zırh
+    private func validateLifetimeCounters() {
         let absoluteTotalTasks = tasks.count + archivedTasks.count
-        
-        // Ekranda tikli olanlar + arşivdeki tüm görevler (arşivdekilerin hepsi bitmiştir zaten)
         let absoluteCompletedTasks = tasks.filter { $0.isCompleted }.count + archivedTasks.count
         
-        // 1. Kural: Ömür boyu eklenenler, en az 'şu an var olan' toplam görev kadar olmalıdır.
         if lifetimeAddedTasks < absoluteTotalTasks {
             lifetimeAddedTasks = absoluteTotalTasks
         }
         
-        // 2. Kural: Ömür boyu tamamlananlar, en az 'şu an bitmiş olanlar' kadar olmalıdır.
         if lifetimeCompletedTasks < absoluteCompletedTasks {
             lifetimeCompletedTasks = absoluteCompletedTasks
         }
         
-        // 3. Güvenlik Kilidi: Ne olursa olsun, tamamlanan görev ekleneni geçemez!
         if lifetimeCompletedTasks > lifetimeAddedTasks {
             lifetimeAddedTasks = lifetimeCompletedTasks
         }
-    }
-    
-    // MARK: - Veri İşlemleri
-    func loadTasks() {
-        self.tasks = dataService.loadTasks()
     }
     
     private func saveAndSync() {
@@ -127,7 +135,8 @@ final class TaskViewModel: ObservableObject {
         reloadWidgets()
     }
     
-    // MARK: - Filtreleme ve Sıralama
+    // MARK: - Filtreleme ve Akıllı Sıralama
+    
     func getFilteredTasks(category: Category?, showPrivate: Bool, searchText: String) -> [TaskModel] {
         var result = tasks
         
@@ -144,26 +153,27 @@ final class TaskViewModel: ObservableObject {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
         
-        // Akıllı Sıralama (Smart Sorting) Algoritması
+        // 4. Akıllı Sıralama (Smart Sorting)
         return result.sorted {
-            // 1. Kural: Tamamlanmamış görevler her zaman üstte kalır
+            // Kural 1: Tamamlanmamışlar üstte kalır
             if $0.isCompleted != $1.isCompleted {
                 return !$0.isCompleted
             }
             
-            // 2. Kural: Akıllı Yığılma (Smart Stacking) Önceliği
+            // Kural 2: Akıllı Yığılma (Stacking) Önceliği - Çok Gecikenler Üste!
             let delay0 = $0.delayedCount ?? 0
             let delay1 = $1.delayedCount ?? 0
             if delay0 != delay1 && !$0.isCompleted {
                 return delay0 > delay1
             }
             
-            // 3. Kural: En son eklenen en üstte görünür
+            // Kural 3: En son eklenen en üstte görünür
             return $0.createdAt > $1.createdAt
         }
     }
     
-    // MARK: - Görev CRUD İşlemleri
+    // MARK: - Görev CRUD (Create, Read, Update, Delete)
+    
     func addTask(title: String, priority: Priority, date: Date, category: Category?, isPrivate: Bool, isReminderEnabled: Bool = false, images: [UIImage] = []) {
         let newTask = TaskModel(
             title: title,
@@ -174,17 +184,13 @@ final class TaskViewModel: ObservableObject {
             isPrivate: isPrivate
         )
         
-        withAnimation {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             tasks.append(newTask)
         }
         
-        if !images.isEmpty {
-            addImages(to: newTask, images: images)
-        }
+        if !images.isEmpty { addImages(to: newTask, images: images) }
         
         addXP(amount: XPRewards.newTask)
-        
-        // ✨ Ömür boyu eklenen görev sayacını artır
         lifetimeAddedTasks += 1
         
         if isReminderEnabled {
@@ -200,17 +206,19 @@ final class TaskViewModel: ObservableObject {
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
             
-            // ✨ Görev tamamlanmışsa grafikleri korumak için arşive kopyala
-            // (Veritabanı şişmesin diye resimleri ve notu temizleyerek kopyalıyoruz)
+            // Eğer görev tamamlanmışsa grafikleri korumak için arşive kopyala
             if task.isCompleted {
                 var archivedTask = task
-                archivedTask.note = ""
+                archivedTask.note = "" // Ağır verileri temizle
                 archivedTask.imageIDs = []
                 archivedTask.audioID = nil
                 archivedTasks.append(archivedTask)
             }
         }
-        tasks.remove(atOffsets: offsets)
+        
+        withAnimation(.easeOut(duration: 0.2)) {
+            tasks.remove(atOffsets: offsets)
+        }
         hapticManager.triggerMediumImpact()
     }
     
@@ -222,7 +230,6 @@ final class TaskViewModel: ObservableObject {
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
             
-            // ✨ Toplu temizlemede de grafikleri korumak için arşive yolla
             var archivedTask = task
             archivedTask.note = ""
             archivedTask.imageIDs = []
@@ -230,17 +237,17 @@ final class TaskViewModel: ObservableObject {
             archivedTasks.append(archivedTask)
         }
         
-        withAnimation {
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
             tasks.removeAll { $0.isCompleted }
         }
         hapticManager.triggerHeavyImpact()
     }
 
     func restoreTask(_ task: TaskModel) {
-        withAnimation {
+        withAnimation(.spring()) {
             tasks.append(task)
         }
-        // ✨ Çöpten geri yüklenirse arşivden çıkar ki istatistiklerde çift (duplicate) sayılmasın
+        // Çöpten geri yüklendiği için arşivden çıkar (İstatistiklerde çift sayılmasın)
         archivedTasks.removeAll { $0.id == task.id }
         
         saveAndSync()
@@ -248,45 +255,37 @@ final class TaskViewModel: ObservableObject {
     }
     
     func toggleCompletion(task: TaskModel) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].isCompleted.toggle()
-            
-            let isDone = tasks[index].isCompleted
-            
-            // Görev tamamlandığında o anın saatini kaydet, iptal edilirse sil
-            tasks[index].completedAt = isDone ? Date() : nil
-            
-            if isDone {
-                NotificationManager.shared.cancelNotification(for: task.id)
-                // Rutin tamamlandıysa alev serisini (Streak) artır!
-                if let rID = task.routineID {
-                    RoutineManager.shared.incrementStreak(for: rID)
-                }
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        
+        tasks[index].isCompleted.toggle()
+        let isDone = tasks[index].isCompleted
+        
+        // Görev tamamlandığında saati kaydet
+        tasks[index].completedAt = isDone ? Date() : nil
+        
+        if isDone {
+            NotificationManager.shared.cancelNotification(for: task.id)
+            // Rutin serisini artır
+            if let rID = task.routineID {
+                RoutineManager.shared.incrementStreak(for: rID)
             }
-            
-            // Dinamik XP hesaplama (Zorluğa göre çarpan uygular)
-            var xpChange = xpService.calculateXP(for: tasks[index], isCompleted: isDone)
-            
-            // Geri Dönüş (Comeback) Bonusu
-            if isDone, let delayCount = tasks[index].delayedCount, delayCount > 1 {
-                xpChange += (delayCount * 10)
-            }
-            
-            addXP(amount: xpChange)
-            
-            // ✨ Ömür boyu tamamlanma sayacını güncelle
-            if isDone {
-                lifetimeCompletedTasks += 1
-            } else if lifetimeCompletedTasks > 0 {
-                lifetimeCompletedTasks -= 1
-            }
-            
-            if isDone {
-                checkDailyBonus()
-                hapticManager.triggerSuccess()
-            } else {
-                hapticManager.triggerWarning()
-            }
+        }
+        
+        // XP Hesaplama ve Geri Dönüş Bonusu
+        var xpChange = xpService.calculateXP(for: tasks[index], isCompleted: isDone)
+        if isDone, let delayCount = tasks[index].delayedCount, delayCount > 1 {
+            xpChange += (delayCount * 10)
+        }
+        
+        addXP(amount: xpChange)
+        
+        if isDone {
+            lifetimeCompletedTasks += 1
+            checkDailyBonus()
+            hapticManager.triggerSuccess()
+        } else {
+            if lifetimeCompletedTasks > 0 { lifetimeCompletedTasks -= 1 }
+            hapticManager.triggerWarning()
         }
     }
     
@@ -309,32 +308,38 @@ final class TaskViewModel: ObservableObject {
         }
     }
 
-    // ✨ SENIOR FIX: Erteleme Yüzleşmesi (Procrastination) Grafiği İçin
+    // MARK: - Özel İşlemler (Erteleme ve Öncelik)
+    
     func postponeTask(task: TaskModel) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            NotificationManager.shared.cancelNotification(for: task.id)
-            if let newDate = Calendar.current.date(byAdding: .day, value: 1, to: tasks[index].createdAt) {
+        guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
+        
+        NotificationManager.shared.cancelNotification(for: task.id)
+        
+        if let newDate = Calendar.current.date(byAdding: .day, value: 1, to: tasks[index].createdAt) {
+            withAnimation(.spring()) {
                 tasks[index].createdAt = newDate
-                
-                // KRİTİK EKLENTİ: Erteleme butonuna basıldığında Erteleme Yükü sayacını artırıyoruz
+                // Erteleme yükünü artır
                 tasks[index].delayedCount = (tasks[index].delayedCount ?? 0) + 1
-                
-                if !tasks[index].isCompleted {
-                    NotificationManager.shared.scheduleNotification(for: tasks[index])
-                }
             }
-            hapticManager.triggerLightImpact()
+            
+            if !tasks[index].isCompleted {
+                NotificationManager.shared.scheduleNotification(for: tasks[index])
+            }
         }
+        hapticManager.triggerLightImpact()
     }
     
     func prioritizeTask(task: TaskModel) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].priority = .urgent
+            withAnimation(.spring()) {
+                tasks[index].priority = .urgent
+            }
             hapticManager.triggerSuccess()
         }
     }
 
-    // MARK: - XP & Rütbe & Güvenlik
+    // MARK: - Oyunlaştırma (XP & Rütbe)
+    
     private func addXP(amount: Int) {
         let oldRank = currentRank
         userXP += amount
@@ -356,6 +361,8 @@ final class TaskViewModel: ObservableObject {
             self.showConfetti = false
         }
     }
+    
+    // MARK: - Güvenlik (Auth)
     
     func authenticate() {
         Task {
@@ -379,7 +386,7 @@ final class TaskViewModel: ObservableObject {
         isUnlocked = false
     }
     
-    // MARK: - Medya Yönetimi
+    // MARK: - Medya ve Takvim
     
     func addImages(to task: TaskModel, images: [UIImage]) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
@@ -391,9 +398,6 @@ final class TaskViewModel: ObservableObject {
         hapticManager.triggerLightImpact()
     }
     
-    // MARK: - Takvim (Calendar) Entegrasyonu
-    
-    /// Görevi Apple'ın yerel takvimine ekler.
     func addToCalendar(task: TaskModel) {
         Task {
             do {
@@ -402,21 +406,30 @@ final class TaskViewModel: ObservableObject {
                     try calendarService.saveTaskToCalendar(task: task)
                     hapticManager.triggerSuccess()
                 } else {
+                    self.errorMessage = "Takvim erişim izni alınamadı."
                     hapticManager.triggerError()
                 }
             } catch {
-                print("Takvim hatası: \(error)")
+                print("🛑 Takvim Hatası: \(error.localizedDescription)")
+                self.errorMessage = "Görev takvime eklenemedi."
                 hapticManager.triggerError()
             }
         }
     }
     
-    // MARK: - Widget Reload
+    // MARK: - Widget Entegrasyonu
+    
     private func reloadWidgets() {
-        if let encoded = try? JSONEncoder().encode(tasks) {
-            UserDefaults(suiteName: "group.com.kopanzi.yaver")?.set(encoded, forKey: "yaver_tasks_v2")
+        // AppGroup Data Sharing (Widget'ların ana uygulamadan veri çekebilmesi için)
+        if let defaults = UserDefaults(suiteName: "group.com.kopanzi.yaver") {
+            do {
+                let encodedTasks = try JSONEncoder().encode(tasks)
+                defaults.set(encodedTasks, forKey: "yaver_tasks_v2")
+                defaults.set(userXP, forKey: "userXP")
+            } catch {
+                print("🛑 Widget Data Sync Hatası: \(error.localizedDescription)")
+            }
         }
-        UserDefaults(suiteName: "group.com.kopanzi.yaver")?.set(userXP, forKey: "userXP")
         WidgetCenter.shared.reloadAllTimelines()
     }
 }

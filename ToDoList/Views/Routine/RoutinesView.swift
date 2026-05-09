@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Kullanıcının tüm rutinlerini yönettiği, alevlerini (streak) ve zamanlamalarını gördüğü ana kontrol paneli.
-/// Senior Notu: Glassmorphism (Buzlu Cam) UI prensipleriyle güncellendi ve performansı artırıldı.
+/// Senior Notu: Zorunlu karanlık mod (.preferredColorScheme(.dark)) kaldırılarak,
+/// tüm statik renkler aydınlık/karanlık mod uyumlu (Adaptive) hale getirilmiştir.
 struct RoutinesView: View {
     // MARK: - Properties
     @StateObject private var routineManager = RoutineManager.shared
@@ -32,8 +33,7 @@ struct RoutinesView: View {
             }
             .navigationTitle("🔁 Rutinlerim")
             .navigationBarTitleDisplayMode(.inline)
-            // Koyu temayı zorla (Mesh gradient üzerinde kusursuz durması için)
-            .preferredColorScheme(.dark)
+            // ✨ SENIOR FIX: .preferredColorScheme(.dark) SİLİNDİ! Artık cihazın moduna göre esnek.
             .toolbar {
                 // SOL: Geri Dönüş Butonu
                 ToolbarItem(placement: .topBarLeading) {
@@ -102,7 +102,8 @@ private extension RoutinesView {
         VStack(spacing: 24) {
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.05))
+                    // ✨ SENIOR FIX: Adaptive şeffaflık
+                    .fill(Color.primary.opacity(0.05))
                     .frame(width: 120, height: 120)
                 
                 Image(systemName: "repeat.circle")
@@ -114,11 +115,11 @@ private extension RoutinesView {
             VStack(spacing: 12) {
                 Text("Rutin Bulunmadı")
                     .font(.title2.bold())
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary) // ✨ Adaptive
                 
                 Text("Her gün veya belirlediğin aralıklarla tekrarlanan alışkanlıklar ekleyerek serini (🔥) başlat!")
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.secondary) // ✨ Adaptive
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 40)
                     .lineSpacing(4)
@@ -130,7 +131,8 @@ private extension RoutinesView {
             }) {
                 Text("İlk Rutinini Oluştur")
                     .font(.headline)
-                    .foregroundColor(Color(hex: "10221f")) // Koyu kontrast metin
+                    // ✨ SENIOR FIX: Zemin rengi değiştikçe yazının kontrast kalması için systemBackground kullanıldı
+                    .foregroundColor(Color(uiColor: .systemBackground))
                     .padding(.vertical, 16)
                     .padding(.horizontal, 32)
                     .background(appearance.accentColor)
@@ -194,27 +196,29 @@ struct RoutineCardView: View {
             // 1. SOL TARAF: Döngü İkonu (Aktif/Pasif durumuna göre renklenir)
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(routine.isActive ? appearance.accentColor.opacity(0.15) : Color.white.opacity(0.05))
+                    // ✨ SENIOR FIX: Sabit .white yerine Adaptive .primary
+                    .fill(routine.isActive ? appearance.accentColor.opacity(0.15) : Color.primary.opacity(0.05))
                     .frame(width: 54, height: 54)
                 
                 Image(systemName: routine.isActive ? "repeat.circle.fill" : "pause.circle.fill")
                     .font(.system(size: 26, weight: .semibold))
-                    .foregroundColor(routine.isActive ? appearance.accentColor : .white.opacity(0.4))
+                    // ✨ SENIOR FIX: Pasif durumda .secondary kullanıyoruz
+                    .foregroundColor(routine.isActive ? appearance.accentColor : .primary.opacity(0.3))
             }
             
             // 2. ORTA TARAF: Başlık ve Bilgiler
             VStack(alignment: .leading, spacing: 6) {
                 Text(routine.title)
                     .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundColor(routine.isActive ? .white : .white.opacity(0.5))
-                    .strikethrough(!routine.isActive, color: .white.opacity(0.4))
+                    .foregroundColor(routine.isActive ? .primary : .secondary) // ✨ Adaptive
+                    .strikethrough(!routine.isActive, color: .secondary.opacity(0.6))
                     .lineLimit(1)
                 
                 HStack(spacing: 10) {
                     // Sıklık Etiketi
                     Label("\(routine.interval) \(routine.frequency.rawValue)", systemImage: "clock")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.secondary) // ✨ Adaptive
                     
                     // Alev (Streak) Etiketi
                     if routine.streakCount > 0 {
@@ -276,19 +280,21 @@ struct RoutineCardView: View {
                     // İnce bir stroke (sınır) ekledik
                     .overlay(Capsule().stroke(Color.cyan.opacity(0.3), lineWidth: 1))
                 }
-                .buttonStyle(BouncyGlassButtonStyle(color: .cyan)) // Özel tıklama stili
+                // Özel tıklama stili (Mevcut global objeden gelir)
+                .buttonStyle(BouncyGlassButtonStyle(color: .cyan))
             }
         }
         .padding(16)
-        // ✨ GLASSMORPHISM EFEKTİ
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(routine.isActive ? 0.04 : 0.01))
+                // ✨ SENIOR FIX: Cihazın moduna göre tepki veren Adaptive Glassmorphism
+                .fill(Color.primary.opacity(routine.isActive ? 0.04 : 0.01))
                 .background(.ultraThinMaterial.opacity(routine.isActive ? 0.8 : 0.4))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(routine.isActive ? 0.08 : 0.03), lineWidth: 1)
+                .stroke(Color.primary.opacity(routine.isActive ? 0.08 : 0.03), lineWidth: 1)
         )
         .opacity(routine.isActive ? 1.0 : 0.6)
     }

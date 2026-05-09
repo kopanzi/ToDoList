@@ -1,9 +1,13 @@
 import SwiftUI
 
 /// Tüm başarı rozetlerinin listelendiği detaylı grid ekranı.
+/// Senior Notu: Arka plan Tema Motoruna (appearance.accentColor) bağlanmıştır.
 struct AllAchievementsView: View {
     let achievements: [Achievement]
     @Environment(\.dismiss) var dismiss
+    
+    // ✨ SENIOR FIX: Tema Motoru eklendi
+    @EnvironmentObject var appearance: AppearanceManager
     
     // Tıklanan rozetin detayını göstermek için
     @State private var selectedAchievement: Achievement? = nil
@@ -14,8 +18,13 @@ struct AllAchievementsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                // Koyu arka plan
-                Color(hex: "020807").ignoresSafeArea()
+                // ✨ SENIOR FIX: Hem aydınlık/karanlık mod uyumlu zemin hem de Tema Rengi (Tint)
+                // Böylece "saf beyaz" hissiyatı kırılır ve tematik bir ekran oluşur.
+                ZStack {
+                    Color(uiColor: .systemGroupedBackground)
+                    appearance.accentColor.opacity(0.06) // Profille bütünleşen tema tonu
+                }
+                .ignoresSafeArea()
                 
                 ScrollView {
                     LazyVGrid(columns: columns, spacing: 20) {
@@ -24,7 +33,7 @@ struct AllAchievementsView: View {
                                 HapticManager.shared.triggerSelection()
                                 selectedAchievement = achievement
                             }) {
-                                // AchievementGallery içindeki mevcut kart tasarımını tekrar kullanıyoruz
+                                // AchievementGallery içindeki mevcut Adaptive kart tasarımını tekrar kullanıyoruz
                                 AchievementCard(achievement: achievement)
                             }
                             .buttonStyle(BouncyScaleButtonStyle())
@@ -35,16 +44,12 @@ struct AllAchievementsView: View {
             }
             .navigationTitle("Tüm Başarılar")
             .navigationBarTitleDisplayMode(.inline)
-            // Navigation Bar'ın koyu temaya uyması için
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(Color(hex: "0a1412"), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Kapat") {
                         dismiss()
                     }
-                    .foregroundColor(Color(hex: "0df2cc"))
+                    .foregroundColor(appearance.accentColor) // ✨ Tema Rengi
                 }
             }
             // Bu ekrandan da rozet detaylarına bakabilmek için sheet ekliyoruz
@@ -57,6 +62,9 @@ struct AllAchievementsView: View {
     }
 }
 
+// MARK: - Preview
 #Preview {
     AllAchievementsView(achievements: Achievement.defaultGallery)
+        // ✨ SENIOR FIX: Preview'da çökmemesi için
+        .environmentObject(AppearanceManager.shared)
 }

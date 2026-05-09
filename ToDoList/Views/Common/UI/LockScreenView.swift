@@ -1,6 +1,8 @@
 import SwiftUI
 
 /// Yaver'in gizli kasası için buzlu cam (Glassmorphism) efektli, premium kilit ekranı.
+/// Senior Notu: Sabit koyu renkler (.black, .white) ve hard-coded hex renkleri kaldırılarak
+/// Temaya Duyarlı (Adaptive) ve AppearanceManager entegreli hale getirilmiştir.
 struct LockScreenView: View {
     let icon: String
     let title: String
@@ -12,24 +14,26 @@ struct LockScreenView: View {
     
     var body: some View {
         ZStack {
-            // Arka planı tamamen bulanıklaştırarak arkadaki olası sızıntıları gizler
-            Color.black.opacity(0.4)
-                .background(.ultraThinMaterial)
+            // ✨ SENIOR FIX: Sabit siyah yerine temanın arka planını kalın bir camla kapatıyoruz
+            // Böylece arkadaki olası sızıntıları gizlerken aydınlık moda da uyum sağlar
+            Color.primary.opacity(0.05)
+                .background(.regularMaterial)
                 .ignoresSafeArea()
             
             VStack(spacing: 30) {
                 // Kalkan / Kilit İkonu
                 ZStack {
                     Circle()
-                        .fill(Color(hex: "0df2cc").opacity(0.15))
+                        // ✨ SENIOR FIX: Sabit neon renk yerine seçili tema rengi
+                        .fill(appearance.accentColor.opacity(0.15))
                         .frame(width: 120, height: 120)
                         .scaleEffect(isPulsing ? 1.1 : 0.95)
                         .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isPulsing)
                     
                     Image(systemName: icon)
                         .font(.system(size: 50, weight: .light))
-                        .foregroundColor(Color(hex: "0df2cc"))
-                        .shadow(color: Color(hex: "0df2cc").opacity(0.6), radius: 15)
+                        .foregroundColor(appearance.accentColor) // ✨ SENIOR FIX
+                        .shadow(color: appearance.accentColor.opacity(0.6), radius: 15)
                 }
                 .padding(.top, 40)
                 
@@ -37,12 +41,14 @@ struct LockScreenView: View {
                 VStack(spacing: 12) {
                     Text(title)
                         .font(.system(size: 28, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
+                        // ✨ SENIOR FIX: .white yerine .primary
+                        .foregroundColor(.primary)
                         .tracking(2)
                     
                     Text(subtitle)
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
+                        // ✨ SENIOR FIX: .white.opacity yerine .secondary
+                        .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                         .lineSpacing(4)
@@ -61,12 +67,13 @@ struct LockScreenView: View {
                         Text("Kilidi Aç")
                             .font(.system(size: 16, weight: .bold))
                     }
-                    .foregroundColor(Color(hex: "10221f"))
+                    // ✨ SENIOR FIX: Buton arka planı tema rengi olacağı için, içindeki yazı zıt renkte (Cutout efekti) olmalı.
+                    .foregroundColor(Color(uiColor: .systemBackground))
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 18)
-                    .background(Color(hex: "0df2cc"))
+                    .background(appearance.accentColor) // ✨ SENIOR FIX
                     .cornerRadius(16)
-                    .shadow(color: Color(hex: "0df2cc").opacity(0.4), radius: 15, x: 0, y: 8)
+                    .shadow(color: appearance.accentColor.opacity(0.4), radius: 15, x: 0, y: 8)
                 }
                 .padding(.horizontal, 40)
                 .padding(.bottom, 60)

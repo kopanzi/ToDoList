@@ -1,6 +1,8 @@
 import SwiftUI
 
 /// Kullanıcının silinen görev ve notlarını gördüğü, kurtarabildiği veya tamamen sildiği ekran.
+/// Senior Notu: Sabit beyaz/siyah renkler kaldırılarak Aydınlık/Karanlık mod (Adaptive UI)
+/// uyumu sağlanmış ve Glassmorphism kart tasarımları modernize edilmiştir.
 struct TrashView: View {
     @ObservedObject var taskVM: TaskViewModel
     @ObservedObject var noteVM: NoteViewModel
@@ -64,7 +66,7 @@ struct TrashView: View {
                     Button(action: onMenuTap) {
                         Image(systemName: "line.3.horizontal")
                             .font(.title3)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.primary) // ✨ Adaptive
                     }
                 }
                 
@@ -90,7 +92,7 @@ struct TrashView: View {
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .font(.title3)
-                            .foregroundColor(appearance.accentColor)
+                            .foregroundColor(appearance.accentColor) // ✨ Tema Rengi
                     }
                 }
             }
@@ -136,14 +138,14 @@ struct TrashRowView: View {
             // Bilgiler
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.headline)
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
                     .strikethrough() // Çöpte olduğunu hissettiren üstü çizili tasarım
-                    .foregroundColor(.secondary)
+                    .foregroundColor(.primary.opacity(0.6)) // ✨ Adaptive: Karanlıkta/Aydınlıkta okunaklı
                     .lineLimit(1)
                 
                 Text("Silinme: \(item.deletedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption2)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary) // ✨ Adaptive
             }
             
             Spacer()
@@ -155,16 +157,24 @@ struct TrashRowView: View {
             VStack {
                 Text("\(daysLeft) Gün")
                     .font(.system(size: 10, weight: .bold))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.red.opacity(0.1))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.red.opacity(0.15))
                     .foregroundColor(.red)
-                    .cornerRadius(8)
+                    .clipShape(Capsule()) // ✨ Şık kapsül (Pill) tasarımı
             }
         }
-        .padding()
-        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
-        .cornerRadius(16)
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .padding(16)
+        // ✨ GLASSMORPHISM (Adaptive UI)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                // ✨ SENIOR FIX: .white yerine .primary ile aydınlık/karanlık mod uyumu
+                .fill(Color.primary.opacity(0.03))
+                .background(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 }

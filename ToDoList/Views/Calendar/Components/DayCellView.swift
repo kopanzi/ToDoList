@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Takvim üzerindeki tek bir günü temsil eden akıllı ve etkileşimli hücre.
-/// Senior Notu: Geçmiş günleri soluklaştırarak (Dimming) kullanıcının bugüne odaklanmasını sağlayan UX iyileştirmesi yapıldı.
+/// Senior Notu: Statik beyaz (.white) renkler kaldırılarak Aydınlık/Karanlık mod (Adaptive UI)
+/// uyumu tam sağlanmıştır. Geçmiş günleri soluklaştırma (Dimming) mantığı korunmuştur.
 struct DayCellView: View {
     // MARK: - Properties
     let date: Date
@@ -11,7 +12,7 @@ struct DayCellView: View {
     let hasHiddenTasks: Bool
     let action: () -> Void
     
-    // ✨ SENIOR FIX: Basılı tutma eylemi için özel bir kanal açıyoruz
+    // Basılı tutma eylemi için kanal
     var onLongPress: (() -> Void)? = nil
     
     @EnvironmentObject var appearance: AppearanceManager
@@ -73,7 +74,7 @@ struct DayCellView: View {
             .contentShape(Rectangle()) // Tıklama alanını genişletmek için
         }
         .buttonStyle(DayCellButtonStyle())
-        // ✨ SENIOR FIX: SwiftUI'ın standart buton tıklamasını engellemeden basılı tutmayı algılar
+        // SwiftUI'ın standart buton tıklamasını engellemeden basılı tutmayı algılar
         .simultaneousGesture(
             LongPressGesture(minimumDuration: 0.5).onEnded { _ in
                 onLongPress?()
@@ -91,9 +92,12 @@ private extension DayCellView {
         return "\(day)"
     }
     
+    // ✨ SENIOR FIX: Aydınlık ve Karanlık moda tam duyarlı renk yöneticisi
     var textColor: Color {
         if isSelected {
-            return Color(hex: "10221f") // Seçiliyse koyu renk daha okunaklı olur
+            // Cutout Efekti: Temanın kendi arka plan rengini kullanarak
+            // seçili yuvarlağın içinde yazının delik/kesik gibi durmasını sağlar.
+            return Color(uiColor: .systemBackground)
         }
         if isToday {
             return appearance.accentColor
@@ -101,15 +105,17 @@ private extension DayCellView {
         
         let calendar = Calendar.current
         let isPast = calendar.startOfDay(for: date) < calendar.startOfDay(for: Date())
+        
+        // ✨ .white yerine .primary kullanıyoruz!
         if isPast && heatmapLevel == .none {
-            return .white.opacity(0.25)
+            return .primary.opacity(0.25)
         }
         
         if calendar.isDateInWeekend(date) && heatmapLevel == .none {
-            return .white.opacity(0.4)
+            return .primary.opacity(0.4)
         }
         
-        return .white.opacity(0.9)
+        return .primary.opacity(0.9)
     }
     
     var dotCount: Int {
@@ -122,7 +128,7 @@ private extension DayCellView {
     }
 }
 
-// ✨ Hücreye özel esneme (Bouncy) tıklama stili
+// Hücreye özel esneme (Bouncy) tıklama stili
 struct DayCellButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label

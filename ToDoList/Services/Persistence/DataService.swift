@@ -1,69 +1,74 @@
 import Foundation
 
 /// Veri saklama (Persistence) işlemlerini yöneten merkezi servis.
-/// Senior Notu: NoteModel ismi NotModel olarak güncellenmiş ve tip güvenliği sağlanmıştır.
+/// Senior Notu: Jenerik (Generic) metodlar kullanılarak kod tekrarı önlenmiş,
+/// hata yönetimi 'do-catch' ile profesyonel seviyeye taşınmıştır.
 final class DataService {
+    
+    // MARK: - Singleton
     static let shared = DataService()
-    
-    // Anahtarlar (Keys) - Veritabanındaki tablo isimleri gibi düşünebilirsin.
-    private let taskKey = "yaver_tasks_v2"
-    private let noteKey = "yaver_notes_v2"
-    private let achievementKey = "yaver_achievements_v1" // 🆕 Rozetler için yeni anahtar
-    private let userDefaults = UserDefaults.standard
-    
     private init() {}
     
-    // MARK: - Task (Görev) İşlemleri
+    // MARK: - Storage Keys
+    private enum Keys: String {
+        case tasks = "yaver_tasks_v2"
+        case notes = "yaver_notes_v2"
+        case achievements = "yaver_achievements_v1"
+    }
     
-    /// Görev listesini JSON formatına çevirip diske kaydeder.
-    func saveTasks(_ tasks: [TaskModel]) {
-        if let encoded = try? JSONEncoder().encode(tasks) {
-            userDefaults.set(encoded, forKey: taskKey)
+    private let userDefaults = UserDefaults.standard
+    
+    // MARK: - 🧠 Generic Persistence Engine
+    
+    /// Herhangi bir 'Codable' veriyi diske güvenli bir şekilde kaydeder.
+    private func save<T: Encodable>(_ data: T, forKey key: Keys) {
+        do {
+            let encoded = try JSONEncoder().encode(data)
+            userDefaults.set(encoded, forKey: key.rawValue)
+        } catch {
+            print("🛑 DataService Save Error [\(key.rawValue)]: \(error.localizedDescription)")
         }
     }
     
-    /// Diskteki görev verilerini yükler.
-    func loadTasks() -> [TaskModel] {
-        guard let data = userDefaults.data(forKey: taskKey),
-              let decoded = try? JSONDecoder().decode([TaskModel].self, from: data) else {
+    /// Diskteki veriyi istenen tipe (Decodable) güvenli bir şekilde çevirir.
+    private func load<T: Decodable>(forKey key: Keys) -> [T] {
+        guard let data = userDefaults.data(forKey: key.rawValue) else { return [] }
+        
+        do {
+            return try JSONDecoder().decode([T].self, from: data)
+        } catch {
+            print("🛑 DataService Load Error [\(key.rawValue)]: \(error.localizedDescription)")
             return []
         }
-        return decoded
+    }
+    
+    // MARK: - Task (Görev) İşlemleri
+    
+    func saveTasks(_ tasks: [TaskModel]) {
+        save(tasks, forKey: .tasks)
+    }
+    
+    func loadTasks() -> [TaskModel] {
+        load(forKey: .tasks)
     }
     
     // MARK: - Not (NotModel) İşlemleri
     
-    /// Not listesini (NotModel) JSON formatına çevirip diske kaydeder.
     func saveNotes(_ notes: [NotModel]) {
-        if let encoded = try? JSONEncoder().encode(notes) {
-            userDefaults.set(encoded, forKey: noteKey)
-        }
+        save(notes, forKey: .notes)
     }
     
-    /// Diskteki not verilerini yükleyip 'NotModel' dizisine çevirir.
     func loadNotes() -> [NotModel] {
-        guard let data = userDefaults.data(forKey: noteKey),
-              let decoded = try? JSONDecoder().decode([NotModel].self, from: data) else {
-            return []
-        }
-        return decoded
+        load(forKey: .notes)
     }
     
     // MARK: - 🏆 Başarı (Achievement) İşlemleri
     
-    /// Kullanıcının rozetlerini (kilitli/açık durumlarıyla) diske kaydeder.
     func saveAchievements(_ achievements: [Achievement]) {
-        if let encoded = try? JSONEncoder().encode(achievements) {
-            userDefaults.set(encoded, forKey: achievementKey)
-        }
+        save(achievements, forKey: .achievements)
     }
     
-    /// Diskteki rozetleri yükler.
     func loadAchievements() -> [Achievement] {
-        guard let data = userDefaults.data(forKey: achievementKey),
-              let decoded = try? JSONDecoder().decode([Achievement].self, from: data) else {
-            return [] // Eğer hiç kayıt yoksa boş döner (ViewModel varsayılanları yükleyecek)
-        }
-        return decoded
+        load(forKey: .achievements)
     }
 }

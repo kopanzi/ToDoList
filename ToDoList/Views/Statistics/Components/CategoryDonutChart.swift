@@ -2,12 +2,13 @@ import SwiftUI
 import Charts
 
 /// Kullanıcının bitirdiği görevlerin kategorilere göre dağılımını gösteren Halka (Donut) Grafik bileşeni.
-/// Senior Notu: Zaman bazlı filtreleme özelliği eklenmiş olup, seçim anında grafik yaylanarak yenilenir.
+/// Senior Notu: Statik beyaz renkler kaldırılarak Aydınlık/Karanlık mod (Adaptive UI)
+/// uyumu tam sağlanmış, seçim anında grafik yaylanarak yenilenmeye devam etmektedir.
 struct CategoryDonutChart: View {
     // MARK: - Properties
     let data: [StatisticsViewModel.CategoryData]
     
-    // ✨ YENİ: Üst bileşenden (StatisticsView) gelen filtre bağlantısı
+    // Üst bileşenden (StatisticsView) gelen filtre bağlantısı
     @Binding var selectedFilter: StatisticsViewModel.TimeFilter
     
     // Tema renklerine uymak için
@@ -23,12 +24,13 @@ struct CategoryDonutChart: View {
             HStack {
                 Label("KATEGORİ ANALİZİ", systemImage: "chart.pie.fill")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white.opacity(0.6))
+                    // ✨ SENIOR FIX: Aydınlık modda okunabilirlik için .secondary
+                    .foregroundColor(.secondary)
                     .tracking(1)
                 
                 Spacer()
                 
-                // ✨ YENİ: Şık Açılır Menü (Drop-down Menu)
+                // Şık Açılır Menü (Drop-down Menu)
                 Menu {
                     ForEach(StatisticsViewModel.TimeFilter.allCases) { filter in
                         Button(action: {
@@ -80,10 +82,10 @@ struct CategoryDonutChart: View {
                         VStack {
                             Text("Toplam")
                                 .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(.secondary)
+                                .foregroundColor(.secondary) // ✨ Adaptive
                             Text("\(data.reduce(0) { $0 + $1.count })")
                                 .font(.system(size: 24, weight: .black, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(.primary) // ✨ Adaptive
                         }
                     }
                     
@@ -97,14 +99,14 @@ struct CategoryDonutChart: View {
                                 
                                 Text(item.category)
                                     .font(.system(size: 11, weight: .bold, design: .rounded))
-                                    .foregroundColor(.white.opacity(0.8))
+                                    .foregroundColor(.primary.opacity(0.8)) // ✨ Adaptive
                                     .lineLimit(1)
                                 
                                 Spacer()
                                 
                                 Text("\(item.count)")
                                     .font(.system(size: 12, weight: .black, design: .monospaced))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(.primary) // ✨ Adaptive
                             }
                         }
                         
@@ -112,7 +114,7 @@ struct CategoryDonutChart: View {
                         if data.count > 4 {
                             Text("+ \(data.count - 4) Kategori Daha")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.4))
+                                .foregroundColor(.secondary) // ✨ Adaptive
                                 .padding(.top, 4)
                         }
                     }
@@ -120,14 +122,15 @@ struct CategoryDonutChart: View {
             }
         }
         .padding(20)
-        // ✨ GLASSMORPHISM EFEKTİ
-        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(30)
+        .overlay(RoundedRectangle(cornerRadius: 30).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         // Grafiği yumuşak bir şekilde doldurmak için animasyon
         .onAppear {
             animateChart()
         }
-        // ✨ Filtre değiştiğinde datalar güncellenir ve animasyon baştan oynatılır
+        // Filtre değiştiğinde datalar güncellenir ve animasyon baştan oynatılır
         .onChange(of: data) { _, _ in
             animateChart()
         }
@@ -141,18 +144,19 @@ private extension CategoryDonutChart {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.05), lineWidth: 15)
+                    // ✨ SENIOR FIX: Aydınlık/Karanlık mod duyarlı şeffaflık
+                    .stroke(Color.primary.opacity(0.05), lineWidth: 15)
                     .frame(width: 100, height: 100)
                 
                 Image(systemName: "chart.pie")
                     .font(.system(size: 24))
-                    .foregroundColor(.white.opacity(0.2))
+                    .foregroundColor(.primary.opacity(0.2)) // ✨ Adaptive
             }
             
-            // ✨ YENİ: Filtre metnine göre boş durum cümlesi dinamikleşir
+            // Filtre metnine göre boş durum cümlesi dinamikleşir
             Text("\(selectedFilter.rawValue) İçin Veri Yok")
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.white.opacity(0.4))
+                .foregroundColor(.secondary) // ✨ Adaptive
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)

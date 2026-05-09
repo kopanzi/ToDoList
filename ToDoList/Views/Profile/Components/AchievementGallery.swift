@@ -1,11 +1,15 @@
 import SwiftUI
 
 /// Kullanıcının kazandığı başarı rozetlerini yatay bir listede sergileyen bileşen.
+/// Senior Notu: "Hepsini Gör" butonu ve arkaplanlar Tema Motoruna (Adaptive) bağlandı.
 struct AchievementGallery: View {
     // MARK: - Properties
     let achievements: [Achievement]
     let onSelect: (Achievement) -> Void
-    let onSeeAllTap: () -> Void // ✨ YENİ: Hepsini gör butonu aksiyonu
+    let onSeeAllTap: () -> Void
+    
+    // ✨ SENIOR FIX: Tema Motoru
+    @EnvironmentObject var appearance: AppearanceManager
     
     var body: some View {
         VStack(alignment: .leading, spacing: 15) {
@@ -13,19 +17,20 @@ struct AchievementGallery: View {
             HStack {
                 Text("BAŞARI GALERİSİ")
                     .font(.system(size: 10, weight: .black))
-                    .foregroundColor(.white.opacity(0.4))
+                    // ✨ SENIOR FIX: Aydınlık/Karanlık mod uyumu için .secondary kullanıldı
+                    .foregroundColor(.secondary)
                     .tracking(1.5)
                 
                 Spacer()
                 
-                // ✨ GÜNCELLENDİ: Buton artık dışarıya haber veriyor
                 Button(action: {
                     HapticManager.shared.triggerLightImpact()
                     onSeeAllTap()
                 }) {
                     Text("Hepsini Gör")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(Color(hex: "0df2cc").opacity(0.7))
+                        // ✨ SENIOR FIX: Sabit neon renk yerine kullanıcının aktif Tema Rengi
+                        .foregroundColor(appearance.accentColor.opacity(0.8))
                 }
             }
             .padding(.horizontal, 22)
@@ -70,32 +75,37 @@ struct AchievementCard: View {
                     
                     Image(systemName: achievement.iconName)
                         .font(.system(size: 20, weight: .bold))
+                        // ✨ Not: İkon rengi renkli (gradient) zemin üstünde kontrast için her zaman beyaz kalmalı
                         .foregroundColor(.white)
                 } else {
                     Circle()
-                        .fill(Color.white.opacity(0.05))
+                        // ✨ SENIOR FIX: Kilitli rozetin zemini Adaptive yapıldı
+                        .fill(Color.primary.opacity(0.05))
                     
                     Image(systemName: "lock.fill")
                         .font(.system(size: 18))
-                        .foregroundColor(.white.opacity(0.2))
+                        .foregroundColor(.secondary.opacity(0.5)) // ✨ SENIOR FIX: Adaptive kilit ikonu
                 }
             }
             .frame(width: 46, height: 46)
             
             Text(achievement.title)
                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundColor(achievement.isUnlocked ? .white : .white.opacity(0.3))
+                // ✨ SENIOR FIX: Başlık rengi kilit ve açık olma durumuna göre aydınlık/karanlık moda tam uyum sağlar
+                .foregroundColor(achievement.isUnlocked ? .primary : .secondary.opacity(0.5))
                 .lineLimit(1)
         }
         .frame(width: 85, height: 95)
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive UI)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.03))
+                // ✨ SENIOR FIX: .white yerine .primary ile tam kontrast uyumu
+                .fill(Color.primary.opacity(0.03))
                 .background(.ultraThinMaterial.opacity(0.3))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(achievement.isUnlocked ? Color.white.opacity(0.08) : Color.white.opacity(0.03), lineWidth: 1)
+                .stroke(achievement.isUnlocked ? Color.primary.opacity(0.08) : Color.primary.opacity(0.03), lineWidth: 1)
         )
     }
 }

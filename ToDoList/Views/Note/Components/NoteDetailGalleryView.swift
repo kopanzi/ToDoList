@@ -13,7 +13,8 @@ struct NoteDetailGalleryView: View {
     // MARK: - Properties
     let existingImageIDs: [String]
     let onCameraTap: () -> Void
-    let onImageTap: (UIImage) -> Void
+    // ✨ SENIOR FIX: Tıklanan resmin indeksini ve tüm resimlerin listesini döner
+    let onImageTap: (Int, [UIImage]) -> Void
     let loadImage: (String) -> UIImage?
     
     var body: some View {
@@ -48,7 +49,15 @@ struct NoteDetailGalleryView: View {
                                 if let image = loadImage(imageID) {
                                     thumbnail(image: image) {
                                         HapticManager.shared.triggerMediumImpact()
-                                        withAnimation { _ = removedImageIDs.insert(imageID) }
+                                        // ✨ SENIOR FIX: withAnimation sarı uyarı çözümü
+                                        let _ = withAnimation { removedImageIDs.insert(imageID) }
+                                    }
+                                    .onTapGesture {
+                                        HapticManager.shared.triggerLightImpact()
+                                        // ✨ Tüm resimleri birleştir ve indeksi bulup gönder
+                                        let allImages = currentVisibleIDs.compactMap { loadImage($0) } + newlySelectedImages.map { $0.image }
+                                        let index = currentVisibleIDs.firstIndex(of: imageID) ?? 0
+                                        onImageTap(index, allImages)
                                     }
                                 }
                             }
@@ -57,7 +66,16 @@ struct NoteDetailGalleryView: View {
                             ForEach(newlySelectedImages) { item in
                                 thumbnail(image: item.image) {
                                     HapticManager.shared.triggerMediumImpact()
-                                    withAnimation { newlySelectedImages.removeAll(where: { $0.id == item.id }) }
+                                    // ✨ SENIOR FIX: withAnimation sarı uyarı çözümü
+                                    let _ = withAnimation { newlySelectedImages.removeAll(where: { $0.id == item.id }) }
+                                }
+                                .onTapGesture {
+                                    HapticManager.shared.triggerLightImpact()
+                                    // ✨ Tüm resimleri birleştir ve indeksi bulup gönder
+                                    let allImages = currentVisibleIDs.compactMap { loadImage($0) } + newlySelectedImages.map { $0.image }
+                                    let offset = currentVisibleIDs.count
+                                    let index = newlySelectedImages.firstIndex(where: { $0.id == item.id }) ?? 0
+                                    onImageTap(offset + index, allImages)
                                 }
                             }
                         }
@@ -95,10 +113,6 @@ private extension NoteDetailGalleryView {
                 .cornerRadius(12)
                 .clipped()
                 .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                .onTapGesture {
-                    HapticManager.shared.triggerLightImpact()
-                    onImageTap(image)
-                }
             
             // Silme Butonu
             Button(action: onDelete) {

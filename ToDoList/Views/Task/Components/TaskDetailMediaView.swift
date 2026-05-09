@@ -2,24 +2,24 @@ import SwiftUI
 import PhotosUI
 
 /// Görev detay ekranında medya öğelerini (Görsel ve Ses) ve aksiyon butonlarını yöneten bileşen.
-/// Senior Notu: Galeri ve Kamera butonları minimal tasarıma geçirildi. Resimlerin üzerine tıklayarak
-/// tam ekran önizleme ve silme (X butonu) özellikleri eklendi.
+/// Senior Notu: Sabit beyaz ve mavi renkler kaldırılarak Adaptive UI ve Tema Motoru uyumu sağlandı.
+/// Resimlerin üzerine tıklayarak tam ekran önizleme ve silme özellikleri tamamen mod uyumludur.
 struct TaskDetailMediaView: View {
     // MARK: - Properties
     let task: TaskModel
     @ObservedObject var viewModel: TaskViewModel
-    @EnvironmentObject var appearance: AppearanceManager // ✨ Buton renklerini temaya uydurmak için eklendi
+    @EnvironmentObject var appearance: AppearanceManager
     
     /// Galeri seçimi için ana görünümle senkronize çalışan binding
     @Binding var selectedItem: PhotosPickerItem?
     
     /// Aksiyon Tetikleyicileri
     var onCameraTap: () -> Void
-    var onImageTap: (UIImage) -> Void     // ✨ YENİ: Resme tıklanma durumu
-    var onImageDelete: (String) -> Void   // ✨ YENİ: Resim silinme durumu
+    var onImageTap: (UIImage) -> Void
+    var onImageDelete: (String) -> Void
     
     var body: some View {
-        // ✨ SENIOR FIX: Concurrency/Sendable hatasını önlemek için rengi değere (value type) alıyoruz.
+        // ✨ SENIOR FIX: Concurrency/Sendable hatasını önlemek için rengi değere alıyoruz.
         let themeAccent = appearance.accentColor
         
         VStack(alignment: .leading, spacing: 20) {
@@ -29,7 +29,7 @@ struct TaskDetailMediaView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Ekler (\(task.imageIDs.count))", systemImage: "paperclip")
                         .font(.headline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.secondary) // ✨ Adaptive
                     
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 12) {
@@ -40,17 +40,18 @@ struct TaskDetailMediaView: View {
                                         Image(uiImage: image)
                                             .resizable()
                                             .scaledToFill()
-                                            .frame(width: 90, height: 90) // Biraz daha zarif ve toplu
+                                            .frame(width: 90, height: 90)
                                             .cornerRadius(12)
                                             .clipped()
-                                            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
-                                            // ✨ SENIOR FIX: Resme tıklayınca önizlemeyi tetikler
+                                            .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                                            // ✨ SENIOR FIX: Aydınlık/Karanlık modda resmi belirginleştiren şık çerçeve
+                                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.1), lineWidth: 1))
                                             .onTapGesture {
                                                 HapticManager.shared.triggerLightImpact()
                                                 onImageTap(image)
                                             }
                                         
-                                        // ✨ SENIOR FIX: Silme Butonu (X)
+                                        // Silme Butonu (X)
                                         Button(action: {
                                             HapticManager.shared.triggerMediumImpact()
                                             onImageDelete(id)
@@ -58,7 +59,8 @@ struct TaskDetailMediaView: View {
                                             Image(systemName: "minus.circle.fill")
                                                 .font(.system(size: 18))
                                                 .foregroundColor(.red)
-                                                .background(Circle().fill(Color.white).frame(width: 14, height: 14))
+                                                // ✨ SENIOR FIX: Sabit .white yerine Sistem Arkaplanı ile Cutout (Kesik) efekti
+                                                .background(Circle().fill(Color(uiColor: .systemBackground)).frame(width: 14, height: 14))
                                         }
                                         .offset(x: 6, y: -6)
                                     }
@@ -75,9 +77,10 @@ struct TaskDetailMediaView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Sesli Not")
                         .font(.headline)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.secondary) // ✨ Adaptive
                     
                     Button(action: {
+                        HapticManager.shared.triggerLightImpact()
                         if let data = MediaManager.shared.loadAudio(id: audioID) {
                             AudioManager.shared.playAudio(data: data)
                         }
@@ -93,13 +96,15 @@ struct TaskDetailMediaView: View {
                             
                             if AudioManager.shared.isPlaying {
                                 ProgressView()
-                                    .tint(.blue)
+                                    .tint(themeAccent) // ✨ Tema Rengi
                             }
                         }
                         .padding()
-                        .background(Color.blue.opacity(0.1))
-                        .foregroundColor(.blue)
+                        // ✨ SENIOR FIX: Sabit mavi yerine Tema Rengine bağlandı
+                        .background(themeAccent.opacity(0.1))
+                        .foregroundColor(themeAccent)
                         .cornerRadius(12)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(themeAccent.opacity(0.2), lineWidth: 1))
                     }
                 }
             }
@@ -115,6 +120,7 @@ struct TaskDetailMediaView: View {
                         .background(themeAccent.opacity(0.1))
                         .foregroundColor(themeAccent)
                         .cornerRadius(10)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(themeAccent.opacity(0.2), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
                 
@@ -130,23 +136,10 @@ struct TaskDetailMediaView: View {
                         .background(themeAccent.opacity(0.1))
                         .foregroundColor(themeAccent)
                         .cornerRadius(10)
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(themeAccent.opacity(0.2), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
             }
         }
     }
-}
-
-// MARK: - Preview
-#Preview {
-    TaskDetailMediaView(
-        task: TaskModel(title: "Test", priority: .medium),
-        viewModel: TaskViewModel(),
-        selectedItem: .constant(nil),
-        onCameraTap: {},
-        onImageTap: { _ in },
-        onImageDelete: { _ in }
-    )
-    .environmentObject(AppearanceManager.shared)
-    .padding()
 }

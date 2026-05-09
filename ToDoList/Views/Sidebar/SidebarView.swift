@@ -2,7 +2,8 @@ import SwiftUI
 
 /// Yan menü navigasyonunu yöneten ana orkestratör bileşen.
 /// Senior Notu: Bu View, iş mantığını 'Components' altındaki parçalara dağıtarak
-/// temiz ve sürdürülebilir bir yapı sunar. Kategori listesi kaldırılarak sadeleştirilmiştir.
+/// temiz ve sürdürülebilir bir yapı sunar. Sabit beyaz renkler kaldırılarak
+/// Adaptive UI (Aydınlık/Karanlık mod) uyumu tam sağlanmıştır.
 struct SidebarView: View {
     // MARK: - Properties
     @ObservedObject var taskVM: TaskViewModel
@@ -39,8 +40,6 @@ struct SidebarView: View {
                             isSelected: selectedScreen == .tasks && selectedCategory == nil
                         ) { navigate(to: .tasks) }
                         
-                        // 🗑️ BURADAKİ ESKİ "RUTİNLERİM" KODUNU SİLDİK
-                        
                         SidebarMenuItemView(
                             title: "Gizli Kasa",
                             icon: "lock.shield.fill",
@@ -69,7 +68,6 @@ struct SidebarView: View {
                     
                     // ✨ ARAÇLAR (TOOLS) BÖLÜMÜ
                     Group {
-                        // ✨ YENİ YERİ: Rutinlerim Sekmesi Odak Sayacının Üstüne Taşındı!
                         SidebarMenuItemView(
                             title: "Rutinlerim",
                             icon: "repeat.circle.fill",
@@ -90,7 +88,6 @@ struct SidebarView: View {
                             }
                         }
                         
-                        // 🗑️ YENİ EKLENEN ÇÖP KUTUSU BUTONU
                         SidebarMenuItemView(
                             title: "Çöp Kutusu",
                             icon: "trash.fill",
@@ -119,10 +116,10 @@ struct SidebarView: View {
         }
         .frame(maxWidth: 250)
         .frame(maxHeight: .infinity)
-        .background(Color.clear) // Arka plan ContentView'daki Mesh Gradient'ı gösterir
+        // ✨ SENIOR FIX: Arka plan ContentView'daki sistem rengini (System Background) gösterir
+        .background(Color.clear)
         .offset(x: isMenuOpen ? 0 : -250)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // ✨ YENİ: Odak Sayacını Tam Ekran (Full Screen) Açan Bağlantı
         .fullScreenCover(isPresented: $showingFocusTimer) {
             FocusTimerView(taskVM: taskVM)
         }
@@ -134,7 +131,8 @@ private extension SidebarView {
     
     var dividerLine: some View {
         Divider()
-            .background(Color.white.opacity(0.15))
+            // ✨ SENIOR FIX: Beyaz yerine Adaptive şeffaf çizgi
+            .background(Color.primary.opacity(0.1))
             .padding(.horizontal, 20)
             .padding(.vertical, 5)
     }
@@ -142,7 +140,8 @@ private extension SidebarView {
     var footerInfo: some View {
         Text("Yaver v2.5.0 • Senior Edition")
             .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundColor(.white.opacity(0.3))
+            // ✨ SENIOR FIX: Beyaz yerine Adaptive ikincil renk
+            .foregroundColor(.secondary)
             .padding(24)
     }
     

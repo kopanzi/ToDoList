@@ -1,6 +1,8 @@
 import SwiftUI
 
 /// Görevin meta bilgilerini (Öncelik, Kategori ve Oluşturulma Tarihi) şık bir kart yapısında sunan bileşen.
+/// Senior Notu: Düz renk arka planlar kaldırılarak Adaptive UI (Aydınlık/Karanlık mod) ve
+/// premium Glassmorphism (Buzlu Cam) uyumu sağlanmıştır.
 struct TaskDetailInfoView: View {
     // MARK: - Properties
     let task: TaskModel
@@ -42,19 +44,29 @@ struct TaskDetailInfoView: View {
             // 3. Tarih Bilgisi (Alt Şerit)
             HStack {
                 Label("Oluşturulma:", systemImage: "calendar")
+                    .foregroundColor(.secondary)
+                
                 Spacer()
+                
                 Text(task.createdAt.formatted(date: .abbreviated, time: .shortened))
                     .fontWeight(.medium)
+                    // ✨ SENIOR FIX: Okunabilirliği artıran Adaptive vurgu
+                    .foregroundColor(.primary.opacity(0.8))
             }
             .font(.caption)
-            .foregroundColor(.secondary)
         }
         .padding()
-        .background(Color.secondary.opacity(0.05))
-        .cornerRadius(16)
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive UI)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                // ✨ SENIOR FIX: Karanlıkta koyu siyahımsı, aydınlıkta açık renkli akıllı cam efekti
+                .fill(Color.primary.opacity(0.03))
+                .background(.ultraThinMaterial)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                // ✨ SENIOR FIX: Çok zarif bir sınır çizgisi
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
     }
 }
@@ -85,10 +97,14 @@ private extension TaskDetailInfoView {
 
 // MARK: - Preview
 #Preview {
-    TaskDetailInfoView(task: TaskModel(
-        title: "Örnek Görev",
-        priority: .high,
-        category: .project
-    ))
-    .padding()
+    ZStack {
+        Color.primary.opacity(0.05).ignoresSafeArea() // Test zemini
+        
+        TaskDetailInfoView(task: TaskModel(
+            title: "Örnek Görev",
+            priority: .high,
+            category: .project
+        ))
+        .padding()
+    }
 }

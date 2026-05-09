@@ -1,8 +1,9 @@
 import Foundation
 import LocalAuthentication
 
-/// FaceID, TouchID ve biyometrik doğrulama işlemlerini yöneten servis.
-/// Senior Notu: Callback yapısı yerine 'async/await' kullanılarak daha temiz ve güvenli bir akış sağlanmıştır.
+/// FaceID, TouchID ve cihaz şifresi (Passcode) doğrulama işlemlerini yöneten merkezi servis.
+/// Senior Notu: Sadece biyometriye bel bağlamak yerine, biyometri başarısız olduğunda
+/// otomatik olarak cihaz şifresine (Fallback) geçiş yapan daha güvenli bir mimari kullanılmıştır.
 final class AuthService {
     
     // MARK: - Singleton
@@ -10,17 +11,17 @@ final class AuthService {
     private init() {}
     
     // MARK: - Custom Errors
-    enum AuthError: Error {
+    enum AuthError: Error, LocalizedError {
         case notAvailable
         case failed
         case userCancelled
         case unknown(String)
         
-        var description: String {
+        var errorDescription: String? {
             switch self {
-            case .notAvailable: return "Biyometrik doğrulama bu cihazda kullanılamıyor."
+            case .notAvailable: return "Biyometrik veya şifreli doğrulama bu cihazda ayarlanmamış."
             case .failed: return "Kimlik doğrulaması başarısız oldu."
-            case .userCancelled: return "Kullanıcı işlemi iptal etti."
+            case .userCancelled: return "Kullanıcı doğrulama işlemini iptal etti."
             case .unknown(let msg): return msg
             }
         }
@@ -28,28 +29,35 @@ final class AuthService {
 
     // MARK: - Public Methods
     
-    /// Kullanıcıyı biyometrik olarak doğrular.
-    /// - Parameter reason: Kullanıcıya gösterilecek olan doğrulama nedeni.
+    /// Kullanıcıyı biyometrik veya cihaz şifresi ile doğrular.
+    /// - Parameter reason: Kullanıcıya gösterilecek olan doğrulama nedeni (iOS tarafından ekranda basılır).
     /// - Returns: Doğrulama başarılı ise 'true', aksi halde hata fırlatır.
     func authenticate(reason: String) async throws -> Bool {
+        // ✨ SENIOR TIP: Her doğrulama için yeni bir context oluşturmak, önceki oturumun
+        // durum kalıntılarını temizler ve güvenliği artırır.
         let context = LAContext()
+        context.localizedFallbackTitle = "Şifre Kullan" // Biyometri başarısız olursa çıkacak yazı
+        
         var error: NSError?
         
-        // 1. Cihazın biyometri desteğini kontrol et
-        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            // Simülatör veya desteklemeyen cihazlar için geliştirme kolaylığı:
+        // 1. Politika Seçimi: deviceOwnerAuthentication biyometri + şifre desteği sağlar.
+        // Bu sayede yüzü maskeli veya parmağı ıslak olan kullanıcı uygulamadan dışlanmaz.
+        let policy: LAPolicy = .deviceOwnerAuthentication
+        
+        // 2. Destek Kontrolü
+        guard context.canEvaluatePolicy(policy, error: &error) else {
             #if targetEnvironment(simulator)
-            print("⚠️ Simülatörde otomatik doğrulama sağlandı.")
+            print("⚠️ Simülatörde geliştirici kolaylığı için doğrulama atlandı.")
             return true
             #else
             throw AuthError.notAvailable
             #endif
         }
         
-        // 2. Doğrulamayı başlat
+        // 3. Doğrulamayı Başlat
         do {
             let success = try await context.evaluatePolicy(
-                .deviceOwnerAuthenticationWithBiometrics,
+                policy,
                 localizedReason: reason
             )
             
@@ -59,12 +67,14 @@ final class AuthService {
                 throw AuthError.failed
             }
         } catch let error as LAError {
-            // Spesifik hata yönetimi
+            // ✨ SENIOR ERROR HANDLING: Apple'ın spesifik hata kodlarını yakala
             switch error.code {
-            case .userCancel:
+            case .userCancel, .appCancel, .systemCancel:
                 throw AuthError.userCancelled
-            case .biometryNotAvailable:
+            case .biometryNotAvailable, .passcodeNotSet:
                 throw AuthError.notAvailable
+            case .authenticationFailed:
+                throw AuthError.failed
             default:
                 throw AuthError.unknown(error.localizedDescription)
             }

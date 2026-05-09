@@ -1,13 +1,15 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Takvimin üst kısmında yer alan, 2 haftalık (14 günlük) görünümü sunan akıllı bileşen.
-/// Senior Notu: DragGesture (Sürükleme) ve LongPressGesture (Basılı Tutma) entegrasyonu ile kusursuz bir mobil deneyim sağlar.
+/// Senior Notu: DragGesture ve LongPressGesture entegrasyonu sağlandı.
+/// Sabit beyaz renkler kaldırılarak Aydınlık Mod (Adaptive UI) kusursuzlaştırıldı.
 struct CompactWeekView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: CalendarViewModel
     @EnvironmentObject var appearance: AppearanceManager
     
-    // ✨ SENIOR FIX: Ana ekrandan gelen bağımlılıklar ve basılı tutma köprüsü
+    // Ana ekrandan gelen bağımlılıklar ve basılı tutma köprüsü
     @ObservedObject var taskVM: TaskViewModel
     var onLongPress: (Date) -> Void
     
@@ -45,7 +47,7 @@ struct CompactWeekView: View {
                             }
                         },
                         onLongPress: {
-                            // ✨ GİZLİ GÜÇ: Basılı tutunca tetiklenir (DayCellView'dan gelir)
+                            // Basılı tutunca tetiklenir (DayCellView'dan gelir)
                             HapticManager.shared.triggerHeavyImpact()
                             // Önce o günü seçili yapıyoruz ki UI'da da güncellensin
                             withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -55,30 +57,46 @@ struct CompactWeekView: View {
                             onLongPress(date)
                         }
                     )
+                    // Zaman Yolculuğu (Drag & Drop) Hedefi
+                    .onDrop(of: [.plainText], isTargeted: nil) { providers in
+                        if let provider = providers.first(where: { $0.canLoadObject(ofClass: NSString.self) }) {
+                            provider.loadObject(ofClass: NSString.self) { object, _ in
+                                if let taskID = object as? String {
+                                    // ✨ SENIOR FIX: MainActor izolesi hatasını çözmek için arama işlemini Ana İş Parçacığına (Main Thread) alıyoruz.
+                                    Task { @MainActor in
+                                        if let draggedTask = taskVM.tasks.first(where: { $0.id == taskID }) {
+                                            viewModel.moveTask(draggedTask, to: date)
+                                        }
+                                    }
+                                }
+                            }
+                            return true
+                        }
+                        return false
+                    }
                 }
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 20)
-        // ✨ GLASSMORPHISM EFEKTİ
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white.opacity(0.03))
+                // ✨ SENIOR FIX: Aydınlık mod uyumu için .white yerine .primary kullanıldı
+                .fill(Color.primary.opacity(0.03))
                 .background(.ultraThinMaterial.opacity(0.8))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
-        // ✨ SAĞA-SOLA KAYDIRMA (SWIPE GESTURE)
+        // SAĞA-SOLA KAYDIRMA (SWIPE GESTURE)
         .gesture(
             DragGesture()
                 .onEnded { value in
                     if value.translation.width > 50 {
-                        // Sağa kaydırma -> Önceki haftaya git
                         viewModel.changeWeek(by: -1)
                     } else if value.translation.width < -50 {
-                        // Sola kaydırma -> Sonraki haftaya git
                         viewModel.changeWeek(by: 1)
                     }
                 }
@@ -95,12 +113,12 @@ private extension CompactWeekView {
         HStack {
             Text(dateRangeText(for: days))
                 .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundColor(.white.opacity(0.8))
+                // ✨ SENIOR FIX: .primary ile aydınlık mod desteklendi
+                .foregroundColor(.primary.opacity(0.8))
             
             Spacer()
             
             HStack(spacing: 16) {
-                // ✨ DİNAMİK "BUGÜN" BUTONU: Sadece bugünde değilsek görünür!
                 if !Calendar.current.isDateInToday(viewModel.selectedDate) || viewModel.currentWeekOffset != 0 {
                     Button(action: {
                         viewModel.jumpToToday()
@@ -119,7 +137,7 @@ private extension CompactWeekView {
                 Button(action: { viewModel.changeWeek(by: -1) }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.primary.opacity(0.6)) // ✨ SENIOR FIX
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -127,14 +145,13 @@ private extension CompactWeekView {
                 Button(action: { viewModel.changeWeek(by: 1) }) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(.primary.opacity(0.6)) // ✨ SENIOR FIX
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 4)
-        // Yeni buton girip çıkarken güzel bir animasyon yapsın
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.selectedDate)
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.currentWeekOffset)
     }
@@ -145,7 +162,8 @@ private extension CompactWeekView {
             ForEach(0..<7, id: \.self) { index in
                 Text(weekdays[index])
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(index >= 5 ? appearance.accentColor.opacity(0.8) : .white.opacity(0.4))
+                    // ✨ SENIOR FIX: .primary ile aydınlık mod desteklendi
+                    .foregroundColor(index >= 5 ? appearance.accentColor.opacity(0.8) : .primary.opacity(0.4))
                     .frame(maxWidth: .infinity)
             }
         }
@@ -164,21 +182,4 @@ private extension CompactWeekView {
         
         return "\(firstStr) — \(lastStr)"
     }
-}
-
-// MARK: - Preview
-#Preview {
-    ZStack {
-        // Arkada Mesh efekti simülasyonu
-        Color(hex: "050a09").ignoresSafeArea()
-        
-        let dummyTaskVM = TaskViewModel()
-        CompactWeekView(
-            viewModel: CalendarViewModel(taskVM: dummyTaskVM),
-            taskVM: dummyTaskVM,
-            onLongPress: { _ in }
-        )
-        .padding()
-    }
-    .environmentObject(AppearanceManager.shared)
 }

@@ -2,7 +2,8 @@ import SwiftUI
 import Charts
 
 /// Kullanıcının son 7 günlük görev tamamlama ritmini (Sütun Grafik) gösteren bileşen.
-/// Senior Notu: SwiftUI Charts kullanılmış, sütunların üzerine iOS Health tarzı rakamlar (annotation) eklenmiştir.
+/// Senior Notu: Statik beyaz/siyah renkler kaldırılarak Aydınlık/Karanlık mod (Adaptive UI)
+/// uyumu tam sağlanmış, iOS Health tarzı rakamlar (annotation) modernize edilmiştir.
 struct WeeklyActivityChart: View {
     // MARK: - Properties
     let data: [StatisticsViewModel.DailyActivity]
@@ -17,7 +18,8 @@ struct WeeklyActivityChart: View {
             HStack {
                 Label("HAFTALIK RİTİM", systemImage: "waveform.path.ecg")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white.opacity(0.6))
+                    // ✨ SENIOR FIX: Aydınlık/Karanlık mod uyumu
+                    .foregroundColor(.secondary)
                     .tracking(1)
                 
                 Spacer()
@@ -52,7 +54,8 @@ struct WeeklyActivityChart: View {
                         if item.count > 0 && animationProgress > 0.8 {
                             Text("\(item.count)")
                                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.9))
+                                // ✨ SENIOR FIX: .white yerine .primary kullanılarak her modda net okuma sağlandı
+                                .foregroundColor(.primary)
                                 // Tatlı bir yukarı çıkış animasyonu
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
@@ -62,7 +65,8 @@ struct WeeklyActivityChart: View {
                     .annotation(position: .overlay, alignment: .bottom) {
                         if item.count == 0 {
                             Rectangle()
-                                .fill(Color.white.opacity(0.1))
+                                // ✨ SENIOR FIX: Sabit beyaz yerine ortamın zıt rengi
+                                .fill(Color.primary.opacity(0.1))
                                 .frame(height: 2)
                                 .cornerRadius(1)
                         }
@@ -74,14 +78,17 @@ struct WeeklyActivityChart: View {
                 AxisMarks(values: .stride(by: .day)) { _ in
                     AxisValueLabel(format: .dateTime.weekday(.short))
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundStyle(.white.opacity(0.5))
+                        // ✨ SENIOR FIX: .white yerine .secondary
+                        .foregroundStyle(Color.secondary)
                 }
             }
             .chartYAxis(.hidden)
         }
         .padding(20)
-        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive UI)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(30)
+        .overlay(RoundedRectangle(cornerRadius: 30).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         
         .onAppear {
             triggerAnimation()

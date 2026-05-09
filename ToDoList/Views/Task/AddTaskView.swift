@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Yeni görev oluşturma formunu yöneten bağımsız View bileşeni.
 /// Senior Notu: Takvimden gelen seçili tarih bilgisini (Context) algılar ve formu ona göre kurar.
-/// Ayrıca Kamera ve Çoklu Galeri (MultiImagePicker) entegrasyonu barındırır.
+/// Form yapısı SwiftUI standartlarında olduğu için Adaptive UI (Aydınlık/Karanlık Mod) ile kusursuz çalışır.
 struct AddTaskView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: TaskViewModel
@@ -56,11 +56,11 @@ struct AddTaskView: View {
                             .submitLabel(.done)
                         
                         Button(action: {
-                            // ✨ FIX: iOS 17 withAnimation sarı uyarısı giderildi
                             withAnimation(.spring()) { isNewTaskPrivate.toggle() }
                         }) {
                             Image(systemName: isNewTaskPrivate ? "lock.fill" : "lock.open")
-                                .foregroundColor(isNewTaskPrivate ? .orange : .gray)
+                                // ✨ SENIOR FIX: Sabit .gray yerine Adaptive .secondary
+                                .foregroundColor(isNewTaskPrivate ? .orange : .secondary)
                                 .font(.title3)
                         }
                         .buttonStyle(.plain)
@@ -73,9 +73,8 @@ struct AddTaskView: View {
                     }
                 } header: { Text("GÖREV TANIMI") }
                 
-                // 📸 2. MEDYA EKLEME (YENİ EKLENDİ)
+                // 📸 2. MEDYA EKLEME
                 Section {
-                    // ✨ SENIOR FIX: Daha minimal, yan yana zarif buton tasarımı
                     HStack(spacing: 15) {
                         Button(action: {
                             HapticManager.shared.triggerLightImpact()
@@ -119,12 +118,11 @@ struct AddTaskView: View {
                                             .scaledToFill()
                                             .frame(width: 70, height: 70)
                                             .clipShape(RoundedRectangle(cornerRadius: 12))
-                                            .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+                                            .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
                                         
                                         // Silme Butonu (X)
                                         Button(action: {
                                             HapticManager.shared.triggerLightImpact()
-                                            // ✨ FIX: iOS 17 withAnimation uyarısı
                                             _ = withAnimation(.spring()) {
                                                 selectedImages.remove(at: index)
                                             }
@@ -132,7 +130,8 @@ struct AddTaskView: View {
                                             Image(systemName: "minus.circle.fill")
                                                 .font(.system(size: 18))
                                                 .foregroundColor(.red)
-                                                .background(Circle().fill(Color.white).frame(width: 14, height: 14))
+                                                // ✨ SENIOR FIX: Sabit .white yerine Adaptive arkaplan ile şık bir kesik (cutout) efekti
+                                                .background(Circle().fill(Color(uiColor: .systemBackground)).frame(width: 14, height: 14))
                                         }
                                         .offset(x: 6, y: -6)
                                     }
@@ -150,6 +149,7 @@ struct AddTaskView: View {
                 Section {
                     Toggle(isOn: $isReminderEnabled.animation()) {
                         Label("Hatırlatıcı Ekle", systemImage: "bell.badge.fill")
+                            // ✨ Adaptive renk korundu
                             .foregroundColor(isReminderEnabled ? .orange : .primary)
                     }
                     .tint(.orange)
@@ -197,14 +197,14 @@ struct AddTaskView: View {
                         saveTaskAndDismiss()
                     }
                     .bold()
-                    // ✨ SENIOR FIX: Başlık boş olsa bile eğer fotoğraf eklenmişse butonu aktif et!
+                    // ✨ SENIOR FIX: Ekleme butonu artık Tema Rengine (Accent Color) bağlı!
+                    .foregroundColor(appearance.accentColor)
                     .disabled(newTaskTitle.trimmingCharacters(in: .whitespaces).isEmpty && selectedImages.isEmpty)
                 }
             }
             // ✨ MODAL EKRANLARI BURADA TETİKLENİYOR
             .fullScreenCover(isPresented: $showCamera) {
                 CameraPicker { image in
-                    // ✨ FIX: iOS 17 withAnimation uyarısı
                     withAnimation { selectedImages.append(image) }
                 }
                 .ignoresSafeArea()

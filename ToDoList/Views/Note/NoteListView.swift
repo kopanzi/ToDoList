@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Notların listelendiği ana orkestratör ekran.
-/// Senior Notu: UI (Kullanıcı Arayüzü) ve Filtering (Filtreleme) mantığı tamamen ayrıştırılarak
-/// SwiftUI'ın View render performansı (re-render) maksimize edilmiştir.
+/// Senior Notu: Standart liste görünümünden kurtulup "Havada Süzülen Cam Kartlar" (Floating Glass Cards)
+/// tasarımına geçiş yapılması için liste ayarları (separator, insets) optimize edilmiştir.
 struct NoteListView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: NoteViewModel
@@ -26,9 +26,10 @@ struct NoteListView: View {
             }
             .navigationTitle(showPrivateOnly ? "Gizli Notlar" : "Notlarım")
             .searchable(text: $searchText, prompt: "Notlarda ara...")
+            // ✨ SENIOR FIX: Navigasyon barına da buzlu cam efekti vererek arkaplanla bütünleştiriyoruz.
+            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar { toolbarContent }
             // ✅ BAĞIMSIZ SUNUM: AddNoteView sheet olarak sorunsuzca çağrılır.
-            // AddNoteView içindeki CameraPicker izolasyonu sayesinde burada bir çakışma yaşanmaz.
             .sheet(isPresented: $showingAddNote) {
                 AddNoteView(viewModel: viewModel, isPrivateDefault: showPrivateOnly)
             }
@@ -70,7 +71,12 @@ private extension NoteListView {
                     NavigationLink(destination: NoteDetailView(note: note, viewModel: viewModel)) {
                         NoteRowView(note: note, viewModel: viewModel)
                     }
-                    .listRowBackground(Color.primary.opacity(0.04)) // Hafif şeffaf arka plan
+                    // ✨ SENIOR FIX 1: O çirkin standart liste ayraç çizgilerini kaldırıyoruz!
+                    .listRowSeparator(.hidden)
+                    // ✨ SENIOR FIX 2: NoteRowView'ın kendi cam efektini gösterebilmesi için satır zeminini şeffaf yapıyoruz.
+                    .listRowBackground(Color.clear)
+                    // ✨ SENIOR FIX 3: Kartların arasına ve kenarlarına nefes almaları için boşluk ekliyoruz.
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
                 .onDelete(perform: deleteNoteWithHaptics)
                 .onMove(perform: moveNoteWithHaptics)

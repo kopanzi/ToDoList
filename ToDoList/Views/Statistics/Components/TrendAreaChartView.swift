@@ -3,6 +3,8 @@ import Charts
 
 /// Kullanıcının son 90 günlük üretkenlik trendini Apple Stocks / Health tarzında
 /// akışkan, degrade (gradient) dolgulu ve etkileşimli bir alan grafiğiyle gösterir.
+/// Senior Notu: Statik beyaz/siyah renkler kaldırılarak Aydınlık/Karanlık mod (Adaptive UI)
+/// uyumu tam sağlanmış, Tooltip (Açılır kutu) tasarımı modernize edilmiştir.
 struct TrendAreaChartView: View {
     let data: [StatisticsViewModel.DailyActivity]
     @EnvironmentObject var appearance: AppearanceManager
@@ -18,7 +20,8 @@ struct TrendAreaChartView: View {
             HStack {
                 Label("90 GÜNLÜK ÜRETKENLİK TRENDİ", systemImage: "waveform.path.ecg")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(.white.opacity(0.6))
+                    // ✨ SENIOR FIX: Aydınlık/Karanlık mod uyumu
+                    .foregroundColor(.secondary)
                     .tracking(1)
                 
                 Spacer()
@@ -29,9 +32,11 @@ struct TrendAreaChartView: View {
                         Text("\(selected.count) Görev")
                             .foregroundColor(appearance.accentColor)
                         Text("•")
-                            .foregroundColor(.white.opacity(0.3))
+                            // ✨ SENIOR FIX
+                            .foregroundColor(.secondary.opacity(0.5))
                         Text(formatDate(selected.date))
-                            .foregroundColor(.white.opacity(0.7))
+                            // ✨ SENIOR FIX
+                            .foregroundColor(.primary.opacity(0.8))
                     }
                     .font(.system(size: 10, weight: .bold))
                     .transition(.opacity.combined(with: .scale))
@@ -86,13 +91,16 @@ struct TrendAreaChartView: View {
                                         .foregroundColor(appearance.accentColor)
                                     Text(formatDateShort(selected.date))
                                         .font(.system(size: 9, weight: .bold))
-                                        .foregroundColor(.white.opacity(0.7))
+                                        // ✨ SENIOR FIX: .white yerine .secondary
+                                        .foregroundColor(.secondary)
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 6)
-                                .background(Color.black.opacity(0.6).background(.ultraThinMaterial))
+                                // ✨ SENIOR FIX: Sabit siyah yerine Sistem Arka Planına tam uyumlu material
+                                .background(Color(uiColor: .systemBackground).opacity(0.9).background(.regularMaterial))
                                 .cornerRadius(8)
-                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(appearance.accentColor.opacity(0.3), lineWidth: 1))
+                                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                                .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
                             }
                     }
                 }
@@ -104,9 +112,10 @@ struct TrendAreaChartView: View {
             }
         }
         .padding(20)
-        // ✨ GLASSMORPHISM
-        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive UI)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(30)
+        .overlay(RoundedRectangle(cornerRadius: 30).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .onAppear {
             animateChart()
         }

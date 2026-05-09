@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Takvim modülünün ana ekranı. Üstteki 14 günlük şeridi ve alttaki zaman çizelgesini birleştirir.
-/// Senior Notu: AddTaskView ile tam entegrasyon sağlanmış, görev ekleme tetikleyicileri
-/// alt bileşenlere (CompactWeekView ve DailyFlowListView) devredilmiştir.
+/// Senior Notu: AddTaskView ile tam entegrasyon sağlanmış, statik beyaz (.white) renkler kaldırılarak
+/// Aydınlık/Karanlık moda tam uyumlu (Adaptive) hale getirilmiştir.
 struct CalendarView: View {
     // MARK: - Properties
     @ObservedObject var taskVM: TaskViewModel
@@ -31,11 +31,10 @@ struct CalendarView: View {
             Color.clear.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // 1. ÜST HEADER (Tamamen sadeleştirildi)
+                // 1. ÜST HEADER (Tamamen sadeleştirildi ve Adaptive yapıldı)
                 headerView
                 
                 // 2. KOMPAKT HAFTALIK TAKVİM (Üst Yarı)
-                // ✨ SENIOR FIX: Basılı tutma (Long Press) köprüsü eklendi
                 CompactWeekView(viewModel: viewModel, taskVM: taskVM) { date in
                     taskVM.defaultAdditionDate = date
                     showingAddTask = true
@@ -45,7 +44,6 @@ struct CalendarView: View {
                 .zIndex(2)
                 
                 // 3. GÜNLÜK AKIŞ LİSTESİ (Alt Yarı)
-                // ✨ SENIOR FIX: Ekleme butonu köprüsü eklendi
                 DailyFlowListView(viewModel: viewModel, taskVM: taskVM) {
                     taskVM.defaultAdditionDate = viewModel.selectedDate
                     showingAddTask = true
@@ -56,7 +54,7 @@ struct CalendarView: View {
             // 4. YÜZEN AI BALONU
             floatingAIBubble
         }
-        // ✨ SENIOR FIX: Görev ekleme ekranını ana ekrandan yönetiyoruz
+        // Görev ekleme ekranını ana ekrandan yönetiyoruz
         .sheet(isPresented: $showingAddTask) {
             AddTaskView(viewModel: taskVM, isPrivateDefault: false)
         }
@@ -81,14 +79,16 @@ private extension CalendarView {
                 }) {
                     Image(systemName: "line.3.horizontal")
                         .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
+                        // ✨ SENIOR FIX: .white yerine .primary kullanıldı (Aydınlık mod uyumu)
+                        .foregroundColor(.primary.opacity(0.8))
                 }
                 .buttonStyle(.plain)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(currentMonthName)
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        // ✨ SENIOR FIX: .white yerine .primary (Aydınlık modda okunabilirlik için)
+                        .foregroundColor(.primary)
                     
                     Text("ODAK YILI")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -99,7 +99,7 @@ private extension CalendarView {
             
             Spacer()
             
-            // SAĞ: Sadece Avatar (Bugün butonu CompactWeekView'e taşındı)
+            // SAĞ: Avatar View (Dinamik arka plana tam uyumlu)
             HStack(spacing: 12) {
                 AvatarView(size: 40, showAura: false)
             }
@@ -126,13 +126,13 @@ private extension CalendarView {
                 .foregroundColor(appearance.accentColor)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
+                // ✨ SENIOR FIX: Adaptive Material kullanılarak aydınlık/karanlık modlarda kusursuz kontrast sağlandı
                 .background(
                     Capsule()
-                        .fill(Color.white.opacity(0.05))
-                        .background(.ultraThinMaterial.opacity(0.8))
+                        .fill(.ultraThinMaterial)
                 )
                 .overlay(Capsule().stroke(appearance.accentColor.opacity(0.4), lineWidth: 1))
-                .shadow(color: appearance.accentColor.opacity(0.3), radius: 10, x: 0, y: 5)
+                .shadow(color: appearance.accentColor.opacity(0.2), radius: 10, x: 0, y: 5)
                 .scaleEffect(isAIPulsing ? 1.05 : 0.95)
                 .padding(.trailing, 20)
                 .padding(.bottom, 120)

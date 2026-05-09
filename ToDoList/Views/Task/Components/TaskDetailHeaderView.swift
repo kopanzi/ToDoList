@@ -1,48 +1,37 @@
 import SwiftUI
 
-/// Görevin üst bilgilerini (Kategori, Tarih, Başlık ve Öncelik) gösteren bileşen.
+/// Görevin ana başlığını gösteren minimalist bileşen.
+/// Senior Notu: Tekrara düşen Kategori, Tarih ve Öncelik bilgileri (InfoView içindeki kutuda
+/// zaten yer aldığı için) tamamen silinerek, Apple'ın minimalist "Sadece Odak" tasarım
+/// prensibine uygun, çok daha ferah bir hale getirilmiştir.
 struct TaskDetailHeaderView: View {
+    // MARK: - Properties
     let task: TaskModel
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            // 1. Kategori ve Tarih
-            HStack {
-                if let category = task.category {
-                    Label(category.rawValue, systemImage: category.icon)
-                        .font(.caption)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(category.color.opacity(0.2))
-                        .foregroundColor(category.color)
-                        .cornerRadius(6)
-                }
-                
-                Spacer()
-                
-                Text(task.createdAt.formatted(date: .abbreviated, time: .shortened))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
+        HStack(alignment: .top) {
+            Text(task.title)
+                // ✨ SENIOR FIX: Daha modern ve premium bir başlık fontu
+                .font(.system(.largeTitle, design: .rounded))
+                .bold()
+                .strikethrough(task.isCompleted)
+                // ✨ SENIOR FIX: Sabit .gray yerine Adaptive .primary.opacity
+                .foregroundColor(task.isCompleted ? .primary.opacity(0.4) : .primary)
+                // Başlık ne kadar uzun olursa olsun tam okunabilmesi için
+                .fixedSize(horizontal: false, vertical: true)
             
-            // 2. Ana Başlık ve Önem Durumu
-            HStack(alignment: .top) {
-                Text(task.title)
-                    .font(.largeTitle)
-                    .bold()
-                    .strikethrough(task.isCompleted)
-                    .foregroundColor(task.isCompleted ? .gray : .primary)
-                
-                Spacer()
-                
-                VStack(alignment: .trailing) {
-                    Image(systemName: "flag.fill")
-                        .foregroundColor(task.priority.color)
-                    Text(task.priority.rawValue)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(task.priority.color)
-                }
-            }
+            Spacer()
         }
+        .padding(.bottom, 4) // Kutuyla arasında hafif bir nefes payı
     }
+}
+
+// MARK: - Preview
+#Preview {
+    TaskDetailHeaderView(task: TaskModel(
+        title: "Senior seviyesinde yeni arayüz mimarisini incele",
+        priority: .high,
+        category: .project
+    ))
+    .padding()
 }

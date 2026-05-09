@@ -2,8 +2,8 @@ import SwiftUI
 import PhotosUI
 
 /// Yeni not ekleme formu.
-/// Senior Notu: Klavye animasyon çakışmaları ve Presentation hataları,
-/// birbirinden bağımsız @State değişkenleri ve Callback tabanlı CameraPicker ile çözülmüştür.
+/// Senior Notu: Klavye animasyon çakışmaları, Presentation hataları ve Concurrency (Sendable) uyarıları
+/// çözülmüştür. Çoklu ses kaydı (Multi-Audio) ve Kaydırmalı Galeri (Swipeable Gallery) destekler.
 struct AddNoteView: View {
     // MARK: - Properties
     @Environment(\.dismiss) var dismiss
@@ -24,12 +24,16 @@ struct AddNoteView: View {
     // Medya Durumları
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var newlySelectedImages: [IdentifiableImage] = []
-    @State private var recordedAudioData: Data? = nil
     
-    // ✅ SENIOR ÇÖZÜM: Sunumlar için tamamen bağımsız state'ler.
-    // Artık 'capturedImage' binding'ine ihtiyacımız yok, çünkü CameraPicker closure kullanıyor.
+    // ✨ YENİ: Çoklu Ses (Multi-Audio) Durumları
+    @State private var recordedAudios: [Data] = []
+    @State private var activeAudioIndex: Int? = nil // Oynatılan sesi takip eder
+    
+    // ✨ YENİ: Kaydırmalı Galeri Durumları
     @State private var showCamera = false
-    @State private var previewImage: ImagePreviewItem?
+    @State private var showPreview = false
+    @State private var previewImages: [UIImage] = []
+    @State private var previewIndex: Int = 0
     
     // MARK: - Initialization
     init(viewModel: NoteViewModel, isPrivateDefault: Bool) {
@@ -38,6 +42,10 @@ struct AddNoteView: View {
     }
     
     var body: some View {
+        // ✨ SENIOR FIX: Concurrency (Sendable) hatasını önlemek için
+        // MainActor izoleli rengi yerel bir değere (value type) kopyalıyoruz.
+        let themeAccent = appearance.accentColor
+        
         ZStack {
             NavigationStack {
                 Form {
@@ -65,27 +73,30 @@ struct AddNoteView: View {
                             .focused($focusedField, equals: .icerik)
                     }
                     
-                    // 3. SES KAYIT PANELİ
-                    Section("SESLİ NOT") {
+                    // 3. ÇOKLU SES KAYIT PANELİ
+                    Section("SESLİ NOTLAR") {
                         voiceRecordingSection
                     }
                     
-                    // 4. MEDYA EKLEME
+                    // 4. MEDYA EKLEME VE KAYDIRMALI GALERİ
                     Section("MEDYA") {
                         HStack(spacing: 15) {
-                            // 🖼️ GALERİ: Sistem bileşeni, anlık açılır
+                            // 🖼️ GALERİ
                             PhotosPicker(selection: $selectedItems, matching: .images) {
-                                mediaActionButton(title: "Galeri", icon: "photo.stack", color: .blue)
+                                mediaActionButton(title: "Galeri", icon: "photo.on.rectangle.angled", color: themeAccent)
                             }
+                            .buttonStyle(.plain)
                             
-                            // 📸 KAMERA: Güvenli tetikleyici ile açılır ✅
+                            // 📸 KAMERA
                             Button(action: { triggerCameraSafe() }) {
-                                mediaActionButton(title: "Kamera", icon: "camera", color: .green)
+                                mediaActionButton(title: "Kamera", icon: "camera.fill", color: themeAccent)
                             }
+                            .buttonStyle(.plain)
                         }
                         .listRowBackground(Color.clear)
                         .listRowInsets(EdgeInsets())
                         
+                        // ✨ KAYDIRMALI YATAY LİSTE
                         if !newlySelectedImages.isEmpty {
                             selectedImagesHorizontalGallery
                         }
@@ -104,7 +115,8 @@ struct AddNoteView: View {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Kaydet") { saveNote() }
                             .bold()
-                            .disabled(baslik.isEmpty && newlySelectedImages.isEmpty && recordedAudioData == nil)
+                            .foregroundColor(themeAccent)
+                            .disabled(baslik.trimmingCharacters(in: .whitespaces).isEmpty && newlySelectedImages.isEmpty && recordedAudios.isEmpty)
                     }
                     
                     // Klavye kapatma asistanı
@@ -114,19 +126,16 @@ struct AddNoteView: View {
                 }
             }
         }
-        // ✅ CALLBACK TABANLI KAMERA SUNUMU:
-        // isPresented binding'i SwiftUI tarafından yönetilir, Picker'ın kendi içindeki o boş UIViewController
-        // sayesinde iOS hiyerarşisi kilitlenmez ve galeri asla yanlışlıkla açılmaz.
+        // ✅ KAMERA
         .fullScreenCover(isPresented: $showCamera) {
             CameraPicker { capturedImage in
-                // Delegate callback olarak burayı tetikler, binding state çakışması yaşanmaz.
                 newlySelectedImages.append(IdentifiableImage(image: capturedImage))
             }
             .ignoresSafeArea()
         }
-        // Görsel Önizleme
-        .fullScreenCover(item: $previewImage) { item in
-            ImagePreviewView(image: item.image)
+        // ✨ KAYDIRMALI GALERİ ÖNİZLEME
+        .fullScreenCover(isPresented: $showPreview) {
+            ImagePreviewView(images: previewImages, selectedIndex: previewIndex)
         }
         // Galeri Seçimi Sonrası İşlem
         .onChange(of: selectedItems) { _, _ in loadGalleryImages() }
@@ -138,19 +147,29 @@ private extension AddNoteView {
     
     /// Kamerayı klavye animasyonu ile çakışmayacak şekilde güvenle açar.
     func triggerCameraSafe() {
-        // 1. Klavyeyi STATE üzerinden ve UIKit üzerinden kapat ✅
         focusedField = nil
         UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         
-        // 2. Klavye kapanma animasyonunun bitmesi için çok küçük ve hayati bir gecikme (0.2s)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             HapticManager.shared.triggerLightImpact()
             showCamera = true
         }
     }
     
+    // ✨ Çoklu Ses Bölümü
     var voiceRecordingSection: some View {
-        VStack(spacing: 12) {
+        let themeAccent = appearance.accentColor
+        
+        return VStack(spacing: 12) {
+            
+            // DİNLENEN SES KAYITLARI LİSTESİ (ÇOKLU)
+            if !recordedAudios.isEmpty {
+                ForEach(recordedAudios.indices, id: \.self) { index in
+                    seniorAudioPlayer(data: recordedAudios[index], index: index, themeAccent: themeAccent)
+                }
+            }
+            
+            // KAYIT AŞAMASI
             if audioManager.isRecording {
                 HStack {
                     Circle().fill(.red).frame(width: 8, height: 8)
@@ -158,39 +177,36 @@ private extension AddNoteView {
                         .animation(.easeInOut(duration: 0.5).repeatForever(), value: audioManager.isRecording)
                     Text(formatTime(audioManager.currentProgress)).font(.system(.body, design: .monospaced).bold()).foregroundColor(.red)
                     Spacer()
-                    Button("Durdur") { withAnimation { recordedAudioData = audioManager.stopRecording() } }
-                }
-            } else if let audioData = recordedAudioData {
-                VStack(spacing: 12) {
-                    HStack(spacing: 15) {
-                        Button(action: {
-                            if audioManager.isPlaying { audioManager.togglePause() }
-                            else { audioManager.playAudio(data: audioData) }
-                        }) {
-                            Image(systemName: audioManager.isPlaying ? "pause.fill" : "play.fill")
-                                .foregroundColor(.white).padding(12).background(Color.blue).clipShape(Circle())
+                    Button("Durdur") {
+                        // ✨ SENIOR FIX: Warning susturuldu
+                        withAnimation {
+                            if let data = audioManager.stopRecording() {
+                                recordedAudios.append(data)
+                            }
                         }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Kayıt Hazır").font(.subheadline.bold())
-                            Text("\(formatTime(audioManager.currentProgress)) / \(formatTime(audioManager.totalDuration))").font(.caption.monospacedDigit()).foregroundColor(.secondary)
-                        }
-                        Spacer()
-                        Button(role: .destructive) {
-                            recordedAudioData = nil
-                            audioManager.stopPlayback()
-                        } label: { Image(systemName: "trash").foregroundColor(.red) }
                     }
-                    
-                    Slider(value: Binding(get: { audioManager.currentProgress }, set: { audioManager.seek(to: $0) }), in: 0...(audioManager.totalDuration > 0 ? audioManager.totalDuration : 1))
-                        .tint(.blue)
+                    .foregroundColor(.red)
                 }
-                .padding().background(Color.blue.opacity(0.05)).cornerRadius(15)
-            } else {
+                .padding()
+                .background(Color.red.opacity(0.1))
+                .cornerRadius(12)
+            }
+            // BAŞLANGIÇ AŞAMASI
+            else {
                 HStack {
                     Label("Sesli Not Ekle", systemImage: "mic.badge.plus")
                     Spacer()
-                    Button(action: { audioManager.startRecording() }) {
-                        Image(systemName: "mic.fill").foregroundColor(.white).padding(10).background(appearance.accentColor).clipShape(Circle())
+                    Button(action: {
+                        HapticManager.shared.triggerLightImpact()
+                        audioManager.startRecording()
+                    }) {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .padding(10)
+                            .background(themeAccent)
+                            .clipShape(Circle())
+                            .shadow(color: themeAccent.opacity(0.3), radius: 4, x: 0, y: 2)
                     }
                 }
             }
@@ -198,16 +214,88 @@ private extension AddNoteView {
         .padding(.vertical, 4)
     }
     
+    // ✨ Yeni Eklenen Sesi Oynatıcı
+    @ViewBuilder
+    func seniorAudioPlayer(data: Data, index: Int, themeAccent: Color) -> some View {
+        let isThisPlaying = activeAudioIndex == index && audioManager.isPlaying
+        
+        VStack(spacing: 12) {
+            HStack(spacing: 15) {
+                Button(action: {
+                    HapticManager.shared.triggerLightImpact()
+                    if isThisPlaying {
+                        audioManager.togglePause()
+                    } else {
+                        audioManager.playAudio(data: data)
+                        activeAudioIndex = index
+                    }
+                }) {
+                    Image(systemName: isThisPlaying ? "pause.fill" : "play.fill")
+                        .font(.title2)
+                        .foregroundColor(Color(uiColor: .systemBackground))
+                        .padding(12)
+                        .background(themeAccent)
+                        .clipShape(Circle())
+                        .shadow(color: themeAccent.opacity(0.3), radius: 5, x: 0, y: 3)
+                }
+                
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Kayıt \(index + 1)").font(.subheadline.bold())
+                    Text(isThisPlaying ? "\(formatTime(audioManager.currentProgress)) / \(formatTime(audioManager.totalDuration))" : "Hazır")
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+                
+                Button(role: .destructive) {
+                    HapticManager.shared.triggerMediumImpact()
+                    if isThisPlaying { audioManager.stopPlayback() }
+                    withAnimation { let _ = recordedAudios.remove(at: index) }
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundColor(.red)
+                        .padding(8)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(Circle())
+                }
+            }
+            
+            Slider(value: Binding(
+                get: { isThisPlaying ? audioManager.currentProgress : 0 },
+                set: { val in if isThisPlaying { audioManager.seek(to: val) } }
+            ), in: 0...(isThisPlaying && audioManager.totalDuration > 0 ? audioManager.totalDuration : 1))
+            .tint(themeAccent)
+        }
+        .padding()
+        .background(themeAccent.opacity(0.05))
+        .cornerRadius(15)
+        .overlay(RoundedRectangle(cornerRadius: 15).stroke(themeAccent.opacity(0.1), lineWidth: 1))
+    }
+    
+    // ✨ Resim Galerisi (Sağa Sola Kaydırmalı Tetikleyici)
     var selectedImagesHorizontalGallery: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
                 ForEach(newlySelectedImages) { item in
                     Image(uiImage: item.image)
-                        .resizable().scaledToFill().frame(width: 85, height: 85).cornerRadius(12).clipped()
-                        // Resme basınca önizlemeyi tetikler
-                        .onTapGesture { previewImage = ImagePreviewItem(image: item.image) }
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 85, height: 85)
+                        .cornerRadius(12)
+                        .clipped()
+                        .shadow(color: .black.opacity(0.1), radius: 3, x: 0, y: 2)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                        .onTapGesture {
+                            HapticManager.shared.triggerLightImpact()
+                            // ✨ KAYDIRMALI GALERİYİ AÇ
+                            previewImages = newlySelectedImages.map { $0.image }
+                            previewIndex = newlySelectedImages.firstIndex(where: { $0.id == item.id }) ?? 0
+                            showPreview = true
+                        }
                         .contextMenu {
                             Button(role: .destructive) {
+                                HapticManager.shared.triggerMediumImpact()
                                 withAnimation { newlySelectedImages.removeAll(where: { $0.id == item.id }) }
                             } label: { Label("Sil", systemImage: "trash") }
                         }
@@ -218,9 +306,17 @@ private extension AddNoteView {
     }
     
     func mediaActionButton(title: String, icon: String, color: Color) -> some View {
-        HStack { Image(systemName: icon); Text(title) }
-            .font(.subheadline.bold()).frame(maxWidth: .infinity).padding(.vertical, 12)
-            .background(color.opacity(0.1)).foregroundColor(color).cornerRadius(12)
+        HStack {
+            Image(systemName: icon)
+            Text(title)
+        }
+        .font(.subheadline.bold())
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(color.opacity(0.1))
+        .foregroundColor(color)
+        .cornerRadius(12)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(color.opacity(0.2), lineWidth: 1))
     }
     
     func formatTime(_ time: Double) -> String {
@@ -241,12 +337,18 @@ private extension AddNoteView {
     }
     
     func saveNote() {
+        var finalTitle = baslik.trimmingCharacters(in: .whitespaces)
+        if finalTitle.isEmpty && (!newlySelectedImages.isEmpty || !recordedAudios.isEmpty) {
+            finalTitle = "Hızlı Not"
+        }
+        
+        // 🛠️ SENIOR FIX: 'audios' parametresi ile Çoklu Ses Modelini ViewModel'e aktarıyoruz
         viewModel.addNote(
-            title: baslik,
+            title: finalTitle,
             content: icerik,
             isPrivate: isPrivate,
             images: newlySelectedImages.map { $0.image },
-            audioData: recordedAudioData
+            audios: recordedAudios
         )
         audioManager.stopPlayback()
         dismiss()

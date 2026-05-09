@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Kullanıcının rütbe, XP ve ilerleme bilgilerini şık bir kart içerisinde sunan bileşen.
-/// Senior Notu: Bu bileşen sadece veriyi alır ve görüntüler, iş mantığı ViewModel'den beslenir.
+/// Senior Notu: Standart ProgressView kaldırılarak, Yaver'in premium tasarım diline (Neon & Glass)
+/// uygun özel bir GeometryReader ilerleme çubuğu ve Gradient (Degrade) ikon kutusu entegre edilmiştir.
 struct SettingsProfileView: View {
     // MARK: - Properties
     let rankName: String
@@ -11,48 +12,81 @@ struct SettingsProfileView: View {
     let progress: Double // 0.0 - 1.0 arası
     
     var body: some View {
-        HStack(spacing: 16) {
-            // 1. RÜTBE İKONU (Sol Taraf)
+        HStack(spacing: 18) {
+            // 1. RÜTBE İKONU (Sol Taraf - 3D Gradient Efekti)
             ZStack {
                 Circle()
-                    .fill(rankColor.opacity(0.15))
-                    .frame(width: 70, height: 70)
+                    .fill(
+                        LinearGradient(
+                            colors: [rankColor.opacity(0.25), rankColor.opacity(0.05)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 75, height: 75)
+                
+                // İnce ve şık bir çerçeve (Stroke)
+                Circle()
+                    .stroke(rankColor.opacity(0.3), lineWidth: 1)
+                    .frame(width: 75, height: 75)
                 
                 Image(systemName: rankIcon)
-                    .font(.system(size: 30, weight: .bold))
+                    .font(.system(size: 32, weight: .bold))
                     .foregroundColor(rankColor)
+                    // İkona çok hafif bir parlama efekti
+                    .shadow(color: rankColor.opacity(0.5), radius: 5, x: 0, y: 3)
             }
-            .shadow(color: rankColor.opacity(0.1), radius: 10, x: 0, y: 5)
+            .shadow(color: rankColor.opacity(0.15), radius: 10, x: 0, y: 5)
             
             // 2. BİLGİ ALANI (Sağ Taraf)
             VStack(alignment: .leading, spacing: 6) {
                 // Rütbe İsmi
                 Text(rankName)
-                    .font(.title3.bold())
-                    .foregroundColor(.primary)
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary) // ✨ Adaptive (Aydınlık/Karanlık Uyumlu)
                 
                 // XP Bilgisi
                 HStack(spacing: 4) {
                     Image(systemName: "sparkles")
+                        .font(.system(size: 12, weight: .bold))
                     Text("\(userXP) XP")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
                 }
-                .font(.subheadline.bold())
-                .foregroundColor(.secondary)
+                .foregroundColor(rankColor) // Sabit gri yerine rütbenin rengiyle daha çok dikkat çeker
                 
-                // İlerleme Çubuğu (Progress Bar)
-                VStack(alignment: .trailing, spacing: 4) {
-                    ProgressView(value: progress)
-                        .tint(rankColor)
-                        .scaleEffect(x: 1, y: 1.5, anchor: .center) // Biraz daha kalın tasarım
+                // 3. ÖZEL İLERLEME ÇUBUĞU (Custom Progress Bar)
+                VStack(alignment: .trailing, spacing: 6) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            // Arka Plan (Zemin) - Adaptive
+                            Capsule()
+                                .fill(Color.primary.opacity(0.08))
+                                .frame(height: 6)
+                            
+                            // Dolan Kısım (Neon Gradient)
+                            Capsule()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [rankColor, rankColor.opacity(0.7)],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
+                                )
+                                .frame(width: max(0, geo.size.width * CGFloat(progress)), height: 6)
+                                .shadow(color: rankColor.opacity(0.4), radius: 3, x: 0, y: 0)
+                        }
+                    }
+                    .frame(height: 6)
                     
+                    // Yüzde Metni
                     Text("%\(Int(progress * 100))")
-                        .font(.system(size: 10, weight: .black))
+                        .font(.system(size: 11, weight: .black, design: .monospaced))
                         .foregroundColor(.secondary)
                 }
                 .padding(.top, 4)
             }
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
     }
 }
 

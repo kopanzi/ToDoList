@@ -1,9 +1,13 @@
 import SwiftUI
 
-/// Görev listesindeki tekil satır. Tailwind tasarımına göre "Glass" görünüme geçirildi.
+/// Görev listesindeki tekil satır. Apple HIG standartlarına göre Adaptive (Aydınlık/Karanlık)
+/// ve Glassmorphism görünüme geçirilmiştir.
 struct TaskRowView: View {
     let task: TaskModel
     @ObservedObject var viewModel: TaskViewModel
+    
+    // ✨ SENIOR FIX: Tema rengi için eklendi
+    @EnvironmentObject var appearance: AppearanceManager
     
     var body: some View {
         HStack(spacing: 16) {
@@ -15,12 +19,13 @@ struct TaskRowView: View {
             }) {
                 ZStack {
                     Circle()
-                        .strokeBorder(task.isCompleted ? Color(hex: "0df2cc") : Color.gray.opacity(0.6), lineWidth: 2)
+                        // ✨ SENIOR FIX: Sabit renk yerine Tema Rengi (AccentColor)
+                        .strokeBorder(task.isCompleted ? appearance.accentColor : Color.secondary.opacity(0.4), lineWidth: 2)
                         .frame(width: 24, height: 24)
                     
                     if task.isCompleted {
                         Circle()
-                            .fill(Color(hex: "0df2cc"))
+                            .fill(appearance.accentColor) // ✨ Tema Rengi
                             .frame(width: 12, height: 12)
                             .transition(.scale)
                     }
@@ -31,7 +36,7 @@ struct TaskRowView: View {
             // 2. BAŞLIK VE DETAYLAR
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 6) {
-                    // ✨ SENIOR FIX: Eğer görev rutinden geliyorsa Döngü İkonu göster
+                    // Eğer görev rutinden geliyorsa Döngü İkonu göster
                     if task.routineID != nil {
                         Image(systemName: "repeat")
                             .font(.system(size: 14, weight: .bold))
@@ -41,7 +46,8 @@ struct TaskRowView: View {
                     Text(task.title)
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .strikethrough(task.isCompleted)
-                        .foregroundColor(task.isCompleted ? .white.opacity(0.4) : .white)
+                        // ✨ SENIOR FIX: .white yerine Adaptive .primary
+                        .foregroundColor(task.isCompleted ? .primary.opacity(0.4) : .primary)
                         .lineLimit(1)
                     
                     // Gizlilik İkonu
@@ -51,7 +57,7 @@ struct TaskRowView: View {
                             .foregroundColor(.orange)
                     }
                     
-                    // ✨ SENIOR FIX: Eğer rutinse ve alevi varsa Streak (Seri) rozetini göster
+                    // Eğer rutinse ve alevi varsa Streak (Seri) rozetini göster
                     if let rID = task.routineID,
                        let streak = RoutineManager.shared.routines.first(where: { $0.id == rID })?.streakCount,
                        streak > 0 {
@@ -64,21 +70,21 @@ struct TaskRowView: View {
                 
                 // Saat veya Ek Bilgi
                 HStack(spacing: 4) {
-                    // 🔔 SENIOR DOKUNUŞU: Eğer görev tarihi şu andan ileriyse (hatırlatıcıysa) zil ikonu göster
+                    // Eğer görev tarihi şu andan ileriyse (hatırlatıcıysa) zil ikonu göster
                     if task.createdAt > Date() && !task.isCompleted {
                         Image(systemName: "bell.fill")
                             .foregroundColor(.orange)
                             .font(.system(size: 10))
                     }
                     
-                    // ✨ SENIOR FIX: Göreceli Zaman Gösterimi
                     Text(relativeTimeString(for: task.createdAt))
                         .foregroundColor(timeColor(for: task.createdAt, isCompleted: task.isCompleted))
                         .fontWeight(task.createdAt < Date() && !task.isCompleted ? .bold : .regular)
                     
                     if !task.note.isEmpty {
                         Text("• Not var")
-                            .foregroundColor(.white.opacity(0.5)) // Özel olarak bu metne uyguladık
+                            // ✨ SENIOR FIX: .white.opacity yerine Adaptive .secondary
+                            .foregroundColor(.secondary)
                     }
                 }
                 .font(.system(size: 12))
@@ -103,18 +109,18 @@ struct TaskRowView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
-        // ✨ GÖREV KARTI GLASSMORPHISM
+        // ✨ GÖREV KARTI GLASSMORPHISM (Adaptive UI)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.03))
-                .background(.ultraThinMaterial.opacity(0.5)) // Hafif blur
+                // ✨ SENIOR FIX: Aydınlık ve Karanlık Moda uyumlu şeffaf sistem materyali
+                .fill(Color.primary.opacity(0.03))
+                .background(.ultraThinMaterial.opacity(0.8))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
         )
         .opacity(task.isCompleted ? 0.6 : 1.0) // Tamamlananları biraz soldur
-        // Tasarımdaki listeler arası boşluk için margin yerine padding kullanıp listRowInsets sıfırlanacak
         .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
@@ -146,7 +152,6 @@ struct TaskRowView: View {
         } else if calendar.isDateInTomorrow(date) {
             return "Yarın, \(date.formatted(date: .omitted, time: .shortened))"
         } else {
-            // Çok eskiden veya çok ilerideyse normal format
             return date.formatted(date: .abbreviated, time: .shortened)
         }
     }
@@ -154,7 +159,7 @@ struct TaskRowView: View {
     /// Görevin zaman durumuna göre rengini belirler (Aciliyet hissi için)
     private func timeColor(for date: Date, isCompleted: Bool) -> Color {
         if isCompleted {
-            return .white.opacity(0.5) // Biten işlerin saati soluk olur
+            return .secondary // ✨ SENIOR FIX: Biten işlerin saati adaptive soluk olur
         }
         
         let calendar = Calendar.current
@@ -170,6 +175,6 @@ struct TaskRowView: View {
             }
         }
         
-        return .white.opacity(0.5) // Varsayılan renk
+        return .secondary // ✨ SENIOR FIX: Varsayılan renk adaptive
     }
 }

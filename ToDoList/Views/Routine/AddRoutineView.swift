@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Kullanıcının yeni bir alışkanlık (Rutin) şablonu oluşturduğu form ekranı.
 /// Senior Notu: Hazır şablonlar (Templates) ile hızlı ekleme desteği sunar ve
-/// iOS 17+ standartlarında güvenli (uyarısız) animasyon tetikleyicileri kullanır.
+/// Tema Motoru'na (AppearanceManager) tam uyum sağlar.
 struct AddRoutineView: View {
     // MARK: - Properties
     @Environment(\.dismiss) var dismiss
@@ -21,6 +21,10 @@ struct AddRoutineView: View {
     @State private var frequency: RoutineFrequency = .day
     
     var body: some View {
+        // ✨ SENIOR FIX: Concurrency (Sendable) hatasını önlemek için rengi yerel değere alıyoruz.
+        // Bu sayede butonların içinde (closure) güvenle kullanılabilir.
+        let themeAccent = appearance.accentColor
+        
         NavigationStack {
             Form {
                 // 🚀 YENİ: HAZIR ŞABLONLAR (Yatay Kaydırılabilir Menü)
@@ -33,25 +37,26 @@ struct AddRoutineView: View {
                                         HStack {
                                             Text(template.title)
                                                 .font(.headline.bold())
-                                                .foregroundColor(.primary)
+                                                .foregroundColor(.primary) // ✨ Adaptive
                                             
                                             Spacer()
                                             
                                             Image(systemName: template.category?.icon ?? "star.fill")
-                                                .foregroundColor(template.category?.color ?? .orange)
+                                                .foregroundColor(template.category?.color ?? themeAccent)
                                         }
                                         
                                         Text("Her \(template.interval) \(template.frequency.rawValue)")
                                             .font(.caption)
-                                            .foregroundColor(.secondary)
+                                            .foregroundColor(.secondary) // ✨ Adaptive
                                     }
                                     .padding()
                                     .frame(width: 150)
-                                    .background(Color.secondary.opacity(0.1))
+                                    // ✨ SENIOR FIX: Şablon kartlarına Adaptive Glassmorphism dokunuşu
+                                    .background(Color.primary.opacity(0.04))
                                     .cornerRadius(16)
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 16)
-                                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -96,7 +101,7 @@ struct AddRoutineView: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
-                        .tint(appearance.accentColor)
+                        .tint(themeAccent) // ✨ Tema Rengi
                         
                         Picker("Birim", selection: $frequency) {
                             ForEach(RoutineFrequency.allCases, id: \.self) { freq in
@@ -105,7 +110,7 @@ struct AddRoutineView: View {
                         }
                         .labelsHidden()
                         .pickerStyle(.menu)
-                        .tint(appearance.accentColor)
+                        .tint(themeAccent) // ✨ Tema Rengi
                     }
                     
                     DatePicker(
@@ -114,7 +119,7 @@ struct AddRoutineView: View {
                         in: Date()..., // Geçmişe rutin kurulamaz
                         displayedComponents: [.date, .hourAndMinute]
                     )
-                    .tint(appearance.accentColor)
+                    .tint(themeAccent) // ✨ Tema Rengi
                     
                 } header: {
                     Text("DÖNGÜ AYARLARI")
@@ -154,6 +159,8 @@ struct AddRoutineView: View {
                         saveRoutine()
                     }
                     .bold()
+                    // ✨ SENIOR FIX: Kaydet butonunun rengini de Temaya bağlıyoruz
+                    .foregroundColor(themeAccent)
                     .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }

@@ -2,96 +2,120 @@ import Foundation
 import Combine
 import SwiftUI
 
-/// Yaver'in rutinleri yöneten, zamanı geldiğinde görev üreten arka plan beyni.
-/// Senior Notu: Bildirim (Notification) motoru ve Oyunlaştırma (Gamification) özellikleri entegre edilmiştir.
+/// Yaver'in rutinleri yöneten, zamanı geldiğinde görev üreten ve serileri takip eden arka plan beyni.
+/// Senior Notu: Hayalet Çalışan (Ghost Worker) mimarisi ile uygulama kapalıyken kaçırılan
+/// döngüleri tespit eder ve akıllı yığılma (Stacking) algoritması ile görev listesine enjekte eder.
 @MainActor
 final class RoutineManager: ObservableObject {
+    
+    // MARK: - Singleton
     static let shared = RoutineManager()
     
-    // UI'ın anlık tepki verebilmesi için rutinleri @Published yapıyoruz.
-    @Published var routines: [RoutineModel] = [] {
-        didSet { saveRoutines() }
-    }
+    // MARK: - Constants
+    private let storageKey = "yaver_routines_v2"
+    private let userDefaults = UserDefaults.standard
     
-    private let userDefaultsKey = "yaver_routines_v2"
+    // MARK: - Published State
+    /// Kayıtlı rutinlerin listesi. Dışarıdan sadece okunabilir, değişiklik manager üzerinden yapılır.
+    @Published private(set) var routines: [RoutineModel] = []
     
+    // MARK: - Initialization
     private init() {
         loadRoutines()
     }
     
-    // MARK: - 💾 Veri Yönetimi
+    // MARK: - Persistence (Kalıcılık)
+    
     private func loadRoutines() {
-        if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-           let decoded = try? JSONDecoder().decode([RoutineModel].self, from: data) {
-            self.routines = decoded
+        guard let data = userDefaults.data(forKey: storageKey) else { return }
+        
+        do {
+            self.routines = try JSONDecoder().decode([RoutineModel].self, from: data)
+        } catch {
+            print("🛑 RoutineManager Load Error: \(error.localizedDescription)")
+            self.routines = []
         }
     }
     
     private func saveRoutines() {
-        if let encoded = try? JSONEncoder().encode(routines) {
-            UserDefaults.standard.set(encoded, forKey: userDefaultsKey)
+        do {
+            let encoded = try JSONEncoder().encode(routines)
+            userDefaults.set(encoded, forKey: storageKey)
+        } catch {
+            print("🛑 RoutineManager Save Error: \(error.localizedDescription)")
         }
     }
     
-    // MARK: - 🛠️ CRUD İşlemleri
+    // MARK: - CRUD İşlemleri
+    
     func addRoutine(_ routine: RoutineModel) {
-        routines.append(routine)
-        HapticManager.shared.triggerSuccess()
+        withAnimation(.spring()) {
+            routines.append(routine)
+            saveRoutines()
+        }
         
-        // ✨ YENİ: Alarmı Kur (Uygulama kapalıyken bile çalışması için kuyruğa ekle)
+        HapticManager.shared.triggerSuccess()
+        // Bildirim kuyruğunu hazırla (Gelecek 5 tetiklenme)
         NotificationManager.shared.scheduleRoutineNotifications(for: routine)
     }
     
     func deleteRoutine(id: String) {
-        routines.removeAll { $0.id == id }
-        HapticManager.shared.triggerMediumImpact()
+        withAnimation(.easeOut) {
+            routines.removeAll { $0.id == id }
+            saveRoutines()
+        }
         
-        // ✨ YENİ: Alarmları İptal Et
+        HapticManager.shared.triggerMediumImpact()
+        // Planlanmış bildirimleri temizle
         NotificationManager.shared.cancelRoutineNotification(for: id)
     }
     
     func toggleRoutineActive(id: String) {
-        if let index = routines.firstIndex(where: { $0.id == id }) {
+        guard let index = routines.firstIndex(where: { $0.id == id }) else { return }
+        
+        withAnimation(.spring()) {
             routines[index].isActive.toggle()
             
             if routines[index].isActive {
+                // Yeniden aktif edildiğinde süreci şimdiden başlat
                 routines[index].nextTriggerDate = Date()
                 NotificationManager.shared.scheduleRoutineNotifications(for: routines[index])
             } else {
                 NotificationManager.shared.cancelRoutineNotification(for: id)
             }
             
+            saveRoutines()
             HapticManager.shared.triggerLightImpact()
         }
     }
     
-    // MARK: - 🎮 Oyunlaştırma (Gamification)
+    // MARK: - Gamification (Oyunlaştırma)
     
-    /// Kullanıcı rutinden gelen bir görevi tiklediğinde seriyi artırır.
+    /// Rutin görev tamamlandığında seriyi (Streak) günceller.
     func incrementStreak(for routineID: String) {
-        if let index = routines.firstIndex(where: { $0.id == routineID }) {
-            routines[index].streakCount += 1
-            routines[index].lastCompletedDate = Date()
-            saveRoutines()
-        }
+        guard let index = routines.firstIndex(where: { $0.id == routineID }) else { return }
+        
+        routines[index].streakCount += 1
+        routines[index].lastCompletedDate = Date()
+        saveRoutines()
     }
     
-    /// Kullanıcı XP'si ile seri dondurucu (Buz Küpü) satın alır.
+    /// XP harcayarak seri koruma (Buz Küpü) satın alır.
     func buyFreeze(for routineID: String, taskViewModel: TaskViewModel) -> Bool {
         let freezeCost = 500
         guard taskViewModel.userXP >= freezeCost else { return false }
         
-        if let index = routines.firstIndex(where: { $0.id == routineID }) {
-            taskViewModel.userXP -= freezeCost
-            routines[index].freezeCount += 1
-            saveRoutines()
-            HapticManager.shared.triggerSuccess()
-            return true
-        }
-        return false
+        guard let index = routines.firstIndex(where: { $0.id == routineID }) else { return false }
+        
+        taskViewModel.userXP -= freezeCost
+        routines[index].freezeCount += 1
+        saveRoutines()
+        
+        HapticManager.shared.triggerSuccess()
+        return true
     }
     
-    /// Kullanıcı "Bugünü Atla" dediğinde görevi siler ama seriyi bozmaz.
+    /// Rutinden gelen görevi seriyi bozmadan listeden kaldırır.
     func skipRoutineTask(_ task: TaskModel, taskViewModel: TaskViewModel) {
         withAnimation {
             taskViewModel.tasks.removeAll { $0.id == task.id }
@@ -100,72 +124,66 @@ final class RoutineManager: ObservableObject {
         HapticManager.shared.triggerSuccess()
     }
     
-    // MARK: - 👻 HAYALET ÇALIŞAN (Ghost Worker)
-    /// Bu fonksiyon uygulama her aktif olduğunda veya ana ekrana dönüldüğünde çağrılır.
+    // MARK: - 👻 Ghost Worker (Hayalet Çalışan Motoru)
+    
+    /// Uygulama her ön plana geldiğinde kaçırılan rutin döngülerini kontrol eder.
     func checkRoutines(with taskViewModel: TaskViewModel) {
         let now = Date()
-        var hasChanges = false
+        var hasAnyTaskProduced = false
         
         for i in 0..<routines.count {
-            var routine = routines[i] // inout için geçici değişken
-            
-            // Eğer rutin pasifse hiç bulaşma
+            var routine = routines[i]
             guard routine.isActive else { continue }
             
-            var missedCount = 0
+            var missedCycles = 0
             
-            // Rutin zamanı gelmiş mi veya geçmiş mi? (Döngü sayesinde kaçırdığı tüm aralıkları sayarız)
+            // Zaman yolculuğu kontrolü: Şimdiki zamana gelene kadar kaç döngü geçti?
             while routine.nextTriggerDate <= now {
-                missedCount += 1
+                missedCycles += 1
                 routine.nextTriggerDate = calculateNextDate(from: routine.nextTriggerDate, interval: routine.interval, frequency: routine.frequency)
             }
             
-            // Eğer zamanı geldiyse ve en az 1 kez kaçırıldıysa görev üret!
-            if missedCount > 0 {
-                processRoutineTask(routine: &routine, missedCount: missedCount, taskViewModel: taskViewModel)
-                routines[i] = routine // Güncel değerleri (Buz kırılması vb.) kaydet
-                hasChanges = true
+            if missedCycles > 0 {
+                processRoutineTask(routine: &routine, missedCount: missedCycles, taskViewModel: taskViewModel)
+                routines[i] = routine // Güncel verileri (nextTriggerDate, freezeCount vb.) geri yaz
+                hasAnyTaskProduced = true
                 
-                // ✨ YENİ: Yeni görev üretildikten sonra bildirim kuyruğunu tazele (Sıradaki alarmları kur)
+                // Bildirim kuyruğunu tazele
                 NotificationManager.shared.scheduleRoutineNotifications(for: routine)
             }
         }
         
-        // Eğer yeni görev eklendiyse ufak bir titreşim ver ki kullanıcı "Bir şeyler geldi" desin.
-        if hasChanges {
+        if hasAnyTaskProduced {
+            saveRoutines()
             HapticManager.shared.triggerLightImpact()
         }
     }
     
-    // MARK: - 🥞 Akıllı Yığılma ve Buz Kırma
+    // MARK: - 🥞 Akıllı Yığılma (Stacking) Algoritması
+    
     private func processRoutineTask(routine: inout RoutineModel, missedCount: Int, taskViewModel: TaskViewModel) {
-        // 1. KONTROL: Eğer görev hala ekrandaysa (tamamlanmamışsa), kullanıcı bir önceki döngüyü kaçırmıştır!
-        if let existingTaskIndex = taskViewModel.tasks.firstIndex(where: { $0.routineID == routine.id && !$0.isCompleted }) {
+        // Eğer görev listede bitmemiş halde duruyorsa (Yığılma Durumu)
+        if let existingIndex = taskViewModel.tasks.firstIndex(where: { $0.routineID == routine.id && !$0.isCompleted }) {
             
-            // 🧊 SERİ DONDURUCU KONTROLÜ
+            // 🧊 SERİ DONDURUCU (Freeze) KONTROLÜ
             if routine.freezeCount > 0 {
-                routine.freezeCount -= 1 // Buz küpünü kır!
-                // Not: Seri sıfırlanmadı, XP ile kendini kurtardı!
+                routine.freezeCount -= 1 // Kalkanı kullan
             } else {
-                routine.streakCount = 0 // Seri acımasızca sıfırlanır :(
+                routine.streakCount = 0 // Kalkan yoksa seri acımasızca sıfırlanır
             }
             
-            // Yığılma (Stacking) işlemi
-            var existingTask = taskViewModel.tasks[existingTaskIndex]
+            // Görevi güncelle ve aciliyet ata
+            var existingTask = taskViewModel.tasks[existingIndex]
             let newDelayedCount = (existingTask.delayedCount ?? 0) + missedCount
             existingTask.delayedCount = newDelayedCount
-            
-            // Başlığı uyarı formatına çevir ve aciliyetini artır
             existingTask.title = "\(routine.title) (🚨 \(newDelayedCount) Kez Gecikti)"
             existingTask.priority = .urgent
             
-            // ViewModel'i güncelle
             withAnimation {
-                taskViewModel.tasks[existingTaskIndex] = existingTask
+                taskViewModel.tasks[existingIndex] = existingTask
             }
-            
         } else {
-            // 2. KONTROL: Eğer görev ekranda yoksa taptaze bir görev fırlatıyoruz
+            // Liste temizse yeni bir görev fırlat
             let title = missedCount > 1 ? "\(routine.title) (🚨 \(missedCount) Kez Gecikti)" : routine.title
             let priority: Priority = missedCount > 1 ? .urgent : routine.priority
             
@@ -177,7 +195,7 @@ final class RoutineManager: ObservableObject {
                 createdAt: Date(),
                 isPrivate: false,
                 note: routine.note,
-                routineID: routine.id, // ✨ Hangi rutinden geldiğini bağlıyoruz
+                routineID: routine.id,
                 delayedCount: missedCount > 1 ? missedCount : 0
             )
             
@@ -187,18 +205,15 @@ final class RoutineManager: ObservableObject {
         }
     }
     
-    // MARK: - ⏱️ Zaman Motoru
+    // MARK: - ⏱️ Tarih Motoru
+    
     private func calculateNextDate(from date: Date, interval: Int, frequency: RoutineFrequency) -> Date {
         let calendar = Calendar.current
         switch frequency {
-        case .hour:
-            return calendar.date(byAdding: .hour, value: interval, to: date) ?? date
-        case .day:
-            return calendar.date(byAdding: .day, value: interval, to: date) ?? date
-        case .week:
-            return calendar.date(byAdding: .day, value: interval * 7, to: date) ?? date
-        case .month:
-            return calendar.date(byAdding: .month, value: interval, to: date) ?? date
+        case .hour: return calendar.date(byAdding: .hour, value: interval, to: date) ?? date
+        case .day: return calendar.date(byAdding: .day, value: interval, to: date) ?? date
+        case .week: return calendar.date(byAdding: .day, value: interval * 7, to: date) ?? date
+        case .month: return calendar.date(byAdding: .month, value: interval, to: date) ?? date
         }
     }
 }

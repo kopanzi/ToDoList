@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// Uygulamanın 'Komuta Merkezi' olan istatistik ekranı.
-/// Senior Notu: SwiftUI Charts ile yüksek performanslı veri görselleştirme sağlar.
-/// Tamamen Glassmorphism ve Neon estetiği üzerine kuruludur. Tüm karmaşık grafikler
-/// Components klasöründeki alt View'lara devredilerek kod sadeleştirilmiştir.
+/// Senior Notu: Eski MeshGradient ve statik renkler tamamen kaldırılarak
+/// Apple HIG (Sistem Arkaplanı + Adaptive Renkler) standartlarına geçirilmiştir.
+/// mainMeshColors hatası çözülmüştür.
 struct StatisticsView: View {
     // MARK: - Properties
     @EnvironmentObject var taskVM: TaskViewModel
@@ -13,10 +13,9 @@ struct StatisticsView: View {
     // MARK: - Body
     var body: some View {
         ZStack {
-            // 1. DİNAMİK ARKA PLAN (Mesh Gradient)
-            // Arkadan süzülen Yaver temasına uygun animasyonlu renkler
-            MeshGradientView(colors: appearance.mainMeshColors)
-                .opacity(0.4)
+            // 1. DİNAMİK ARKA PLAN (Apple Native HIG)
+            // ✨ SENIOR FIX: Hata veren Mesh Gradient silindi, Adaptive Sistem Arka Planı eklendi.
+            Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
             
             ScrollView(showsIndicators: false) {
@@ -31,15 +30,15 @@ struct StatisticsView: View {
                     // 1. ÖZET KARTLARI (Bento Box - 4'lü Analiz Kutuları)
                     summaryCards
                     
-                    // 2. HAFTALIK AKTİVİTE (Eski yerine geri geldi)
+                    // 2. HAFTALIK AKTİVİTE
                     WeeklyActivityChart(data: statsVM.weeklyData)
                         .padding(.horizontal, 20)
                     
-                    // ✨ 3. ERTELEME YÜZLEŞMESİ GRAFİĞİ (Gereksiz 90 günlük trend yerine)
+                    // 3. ERTELEME YÜZLEŞMESİ GRAFİĞİ
                     ProcrastinationChartView(data: statsVM.procrastinationData)
                         .padding(.horizontal, 20)
                     
-                    // 4. KATEGORİ DAĞILIMI (Donut Chart Bileşeni - Filtreli)
+                    // 4. KATEGORİ DAĞILIMI
                     CategoryDonutChart(
                         data: statsVM.categoryDistribution,
                         selectedFilter: $statsVM.categoryTimeFilter
@@ -89,11 +88,11 @@ private extension StatisticsView {
             Text("İSTATİSTİKLER")
                 .font(.system(size: 10, weight: .black))
                 .tracking(2)
-                .foregroundColor(appearance.accentColor)
+                .foregroundColor(appearance.accentColor) // ✨ Tema Rengi
             
             Text("Üretkenlik Raporu")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
+                .foregroundColor(.primary) // ✨ Adaptive (Karanlıkta beyaz, aydınlıkta siyah)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
@@ -107,7 +106,7 @@ private extension StatisticsView {
             // Sol Taraftaki Madalya İkonu
             ZStack {
                 Circle()
-                    .fill(appearance.accentColor.opacity(0.2))
+                    .fill(appearance.accentColor.opacity(0.15))
                     .frame(width: 50, height: 50)
                 
                 Image(systemName: "medal.fill")
@@ -119,23 +118,23 @@ private extension StatisticsView {
             VStack(alignment: .leading, spacing: 6) {
                 Text("YAVER İLE YOLCULUĞUN")
                     .font(.system(size: 10, weight: .black))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.secondary) // ✨ Adaptive
                     .tracking(1)
                 
                 // Text yapılarını birleştirerek içindeki sadece bazı kelimeleri renklendiriyoruz!
                 journeyMessageView(completed: completedCount, total: totalCount)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundColor(.primary.opacity(0.9)) // ✨ Adaptive
                     .lineSpacing(2)
             }
             
             Spacer(minLength: 0)
         }
         .padding(20)
-        // ✨ GLASSMORPHISM
-        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
+        // ✨ GLASSMORPHISM (Adaptive)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(24)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .padding(.horizontal, 20)
     }
     
@@ -222,26 +221,26 @@ struct StatMiniCard: View {
                 
                 Text(title)
                     .font(.system(size: 9, weight: .black))
-                    .foregroundColor(.white.opacity(0.3))
+                    .foregroundColor(.secondary) // ✨ Adaptive
             }
             
             VStack(alignment: .leading, spacing: 0) {
                 Text(value)
                     .font(.system(size: 24, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary) // ✨ Adaptive
                     .lineLimit(1)
                     .minimumScaleFactor(0.5) // Yazı çok uzunsa sığdırmak için küçülür
                 
                 Text(subtitle)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.secondary) // ✨ Adaptive
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // ✨ GLASSMORPHISM EFEKTİ
-        .background(Color.white.opacity(0.05).background(.ultraThinMaterial))
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(24)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.05), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
     }
 }

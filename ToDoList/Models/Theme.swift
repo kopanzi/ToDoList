@@ -30,9 +30,15 @@ enum Theme: String, CaseIterable, Identifiable, Codable {
         case .orange: return .orange
         case .red: return .red
         case .green: return .green
-        // ✨ SENIOR UX TIP: Saf siyah (.black) cam efektiyle birleşince her şeyi (gölgeler, blur) yutar.
-        // Color(white: 0.1) kullanarak o premium "Koyu Antrasit" hissini yakalıyoruz.
-        case .dark: return Color(white: 0.1)
+        // ✨ SENIOR FIX: Gece Siyahı (.dark) teması artık Adaptive (Dinamik).
+        // Cihaz Aydınlık moddaysa: Açık Gri/Buzul (Kirli beyaz) olur.
+        // Cihaz Karanlık moddaysa: Premium Koyu Antrasit olur.
+        case .dark:
+            return Color(UIColor { traitCollection in
+                return traitCollection.userInterfaceStyle == .dark
+                    ? UIColor(white: 0.1, alpha: 1.0)
+                    : UIColor(white: 0.95, alpha: 1.0)
+            })
         }
     }
     

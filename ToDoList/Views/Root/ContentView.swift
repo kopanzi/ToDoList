@@ -1,39 +1,35 @@
 import SwiftUI
 
-/// Uygulamanın navigasyon ve görsel katman yöneticisi.
-/// Senior Notu: Biyometrik güvenlik kontrolleri (LockScreen) araya girerek,
-/// gizli ekranlara yetkisiz erişimi katman düzeyinde engeller.
-/// Dinamik motto ve duygu durumu özellikleri tamamen kaldırılarak "Manual Pro" tasarıma geçilmiştir.
+/// Uygulamanın ana navigasyon, katman ve güvenlik yöneticisi.
+/// Senior Notu: Mesh ve Gradient gibi yorucu arka planlar temizlenerek
+/// %100 Apple HIG standartlarına uygun (Sistem Arka Planı) mimariye geçildi.
 struct ContentView: View {
     // MARK: - State Management
-    @Environment(\.scenePhase) var scenePhase // ✨ SENIOR FIX: Hayalet çalışanı uyandırmak için uygulama durumunu dinler
+    @Environment(\.scenePhase) private var scenePhase // Uygulama durumunu (arka plan/aktif) izler
     
+    // Merkezi state instance'ları (Tüm uygulama bunları kullanır)
     @StateObject private var appearance = AppearanceManager.shared
     @StateObject private var taskVM = TaskViewModel()
     @StateObject private var noteVM = NoteViewModel()
     @StateObject private var settingsVM = SettingsViewModel()
     
+    // Navigasyon ve UI Durumları
     @State private var isMenuOpen = false
     @State private var selectedScreen: ScreenType = .tasks
     @State private var selectedCategory: Category? = nil
-    @GestureState private var dragOffset: CGFloat = 0
     
-    // Uygulama Rotaları
+    /// Uygulama rotalarını temsil eden enum
     enum ScreenType { case tasks, notes, settings, hiddenTasks, hiddenNotes, trash, routines }
     
+    // MARK: - Body
     var body: some View {
         ZStack {
-            // 🎨 KATMAN 1: GLOBAL ARKA PLAN (En Altta - Genellikle Sidebar'ı renklendirir)
-            layerBackground(
-                for: appearance.sidebarStyle,
-                meshColors: appearance.sidebarMeshColors,
-                solidColor: appearance.sidebarTheme.mainColor
-            )
-            .ignoresSafeArea()
+            // 🎨 KATMAN 1: GLOBAL SIDEBAR ARKA PLANI
+            // ✨ SENIOR FIX: Native Apple Sistem Arka Planı (Karanlıkta Siyah, Aydınlıkta Beyaz)
+            Color(uiColor: .systemBackground)
+                .ignoresSafeArea()
             
-            // 🧹 KATMAN 2: Motto filigranı tamamen kaldırıldı. Artık temiz ve sade bir arayüz var.
-            
-            // 🍔 KATMAN 3: SIDEBAR İÇERİĞİ
+            // 🍔 KATMAN 2: SIDEBAR (YAN MENÜ)
             SidebarView(
                 taskVM: taskVM,
                 isMenuOpen: $isMenuOpen,
@@ -41,103 +37,71 @@ struct ContentView: View {
                 selectedCategory: $selectedCategory
             )
             
-            // 📲 KATMAN 4: ANA PENCERE (İçerik Alanı)
+            // 📲 KATMAN 3: ANA PENCERE (İÇERİK ALANI)
             mainContentWindow
         }
+        // Tüm alt görünümlere (View) ortam objelerini aktar
         .environmentObject(appearance)
         .environmentObject(taskVM)
         .environmentObject(noteVM)
         .environmentObject(settingsVM)
-        // 🛠️ TÜM LİSTELERİ VE FORMLARI ŞEFFAFLIĞA ZORLA (Global Fix)
+        
+        // --- Global Konfigürasyonlar ---
         .onAppear {
-            UITableView.appearance().backgroundColor = .clear
-            UICollectionView.appearance().backgroundColor = .clear
+            setupGlobalUI()
         }
-        // ✨ SENIOR FIX: AUTO-LOCK (Kullanıcı sekme değiştirdiğinde kasalar anında kilitlenir!)
-        .onChange(of: selectedScreen) { _, newScreen in
-            if newScreen != .hiddenTasks {
-                taskVM.lockVault()
-            }
-            if newScreen != .hiddenNotes {
-                noteVM.lockVault()
-            }
+        
+        // ✨ SENIOR FIX: AUTO-LOCK (Kasa Güvenliği) & iOS 17 onChange Standardı
+        .onChange(of: selectedScreen) { oldValue, newValue in
+            handleAutoLock(for: newValue)
         }
-        // ✨ YENİ: HAYALET ÇALIŞAN (Ghost Worker) UYANDIRMA MOTORU
-        .onChange(of: scenePhase) { _, newPhase in
+        
+        // ✨ GHOST WORKER: Uygulamaya her girişte rutinleri kontrol et
+        .onChange(of: scenePhase) { oldValue, newPhase in
             if newPhase == .active {
-                // Kullanıcı uygulamaya her girdiğinde Motor çalışır!
                 RoutineManager.shared.checkRoutines(with: taskVM)
             }
         }
     }
 }
 
-// MARK: - View Sub-Parts
+// MARK: - View Sub-Parts (Modüler Parçalar)
 private extension ContentView {
     
+    /// Ana ekranın çerçevesini, animasyonlarını ve kendi özel arka planını yönetir.
     var mainContentWindow: some View {
         ZStack {
-            // ANA EKRANIN KENDİ ARKA PLANI
-            Group {
-                if appearance.mainScreenStyle == .glass {
-                    // ✨ SENIOR FIX: Camın arkasında Ana Ekranın kendi Mesh Gradient renkleri dönecek!
-                    layerBackground(
-                        for: .glass,
-                        meshColors: appearance.mainMeshColors, // Sidebar'ın değil, Ana Ekranın renkleri
-                        solidColor: appearance.mainScreenTheme.mainColor
-                    )
-                    .opacity(appearance.mainScreenOpacity)
-                    .overlay(Color.clear.background(.ultraThinMaterial)) // Cam efektini üstüne seriyoruz
-                } else {
-                    layerBackground(
-                        for: appearance.mainScreenStyle,
-                        meshColors: appearance.mainMeshColors,
-                        solidColor: appearance.mainScreenTheme.mainColor
-                    )
-                    .opacity(appearance.mainScreenOpacity)
-                    .background(Color(uiColor: .systemBackground))
-                }
-            }
-            .ignoresSafeArea()
+            // 🎨 ANA EKRAN ARKA PLANI
+            // ✨ SENIOR FIX: Listelerin kusursuz göründüğü gruplanmış sistem arka planı
+            Color(uiColor: .systemGroupedBackground)
+                .ignoresSafeArea()
             
-            // 📺 AKTİF EKRAN İÇERİĞİ VE KİLİT KONTROLÜ
+            // 📺 AKTİF EKRAN İÇERİĞİ
             currentScreenView
-                .scrollContentBackground(.hidden)
+                .scrollContentBackground(.hidden) // Global liste temizliği
             
-            // Menü açıkken içeriğe tıklandığında menüyü kapatan kalkan
+            // Menü açıkken içeriği karartan ve tıklanabilen koruma kalkanı
             if isMenuOpen {
-                Color.black.opacity(0.01)
+                Color.black.opacity(0.01) // Neredeyse görünmez ama tıklamaları yakalar
                     .ignoresSafeArea()
                     .onTapGesture { toggleMenu() }
             }
             
+            // Ekran kenarından çekerek menüyü açma desteği
             edgeDragHandler
         }
-        // Sidebar açılış animasyonları
-        .cornerRadius(isMenuOpen ? 30 : 0)
-        .scaleEffect(isMenuOpen ? 0.84 : 1)
-        .offset(x: isMenuOpen ? 250 : 0)
-        .shadow(color: .black.opacity(isMenuOpen ? 0.3 : 0), radius: 20)
-        .animation(.spring(response: 0.5, dampingFraction: 0.75), value: isMenuOpen)
+        // ✨ SENIOR FIX: Pürüzsüz köşeler için .continuous stili kullanıldı
+        .clipShape(RoundedRectangle(cornerRadius: isMenuOpen ? 30 : 0, style: .continuous))
+        .scaleEffect(isMenuOpen ? 0.86 : 1) // Hafifçe küçülterek ferahlatıcı (snappy) his yaratır
+        .offset(x: isMenuOpen ? 260 : 0)
+        // ✨ SENIOR FIX: Gölge şeffaflığı Adaptive (Aydınlık/Karanlık) yapıya uygun olması için hafifletildi
+        .shadow(color: .black.opacity(isMenuOpen ? 0.15 : 0), radius: 25, x: -5, y: 0)
+        // Apple HIG standartlarına uygun, hızlı ve yaylanan geçiş
+        .animation(.spring(response: 0.45, dampingFraction: 0.75), value: isMenuOpen)
         .ignoresSafeArea(edges: isMenuOpen ? [] : .all)
     }
     
-    @ViewBuilder
-    func layerBackground(for style: AppearanceManager.BackgroundStyle, meshColors: [Color], solidColor: Color) -> some View {
-        switch style {
-        case .glass:
-            // ✨ SENIOR FIX: iOS 18 kontrolünü sildik çünkü MeshGradientView zaten
-            // kendi içinde iOS 17 için harika bir yedek (fallback) barındırıyor!
-            MeshGradientView(colors: meshColors).blur(radius: 25)
-        case .solid:
-            solidColor.opacity(0.1) // Saf siyah yerine temanın karanlık ama kendi rengine çalan bir tonu
-        case .gradient:
-            LinearGradient(colors: meshColors, startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .standard:
-            Color(uiColor: .systemBackground)
-        }
-    }
-    
+    /// Seçili sekmeye göre doğru ekranı döner. (Routing Katmanı)
     @ViewBuilder
     var currentScreenView: some View {
         switch selectedScreen {
@@ -146,9 +110,7 @@ private extension ContentView {
             
         case .routines:
             RoutinesView(onBackTap: {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                    selectedScreen = .tasks
-                }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { selectedScreen = .tasks }
             })
             
         case .hiddenTasks:
@@ -156,9 +118,8 @@ private extension ContentView {
                 TaskListView(viewModel: taskVM, showPrivateOnly: true, onMenuTap: toggleMenu)
             } else {
                 LockScreenView(
-                    icon: "lock.shield.fill",
-                    title: "GİZLİ KASA",
-                    subtitle: "Size özel görevlere erişmek için Yaver'e kimliğinizi doğrulayın.",
+                    icon: "lock.shield.fill", title: "GİZLİ KASA",
+                    subtitle: "Özel görevlerinize erişmek için lütfen doğrulama yapın.",
                     onUnlockTap: { taskVM.authenticate() }
                 )
                 .onAppear { taskVM.authenticate() }
@@ -172,9 +133,8 @@ private extension ContentView {
                 NoteListView(viewModel: noteVM, showPrivateOnly: true, onMenuTap: toggleMenu)
             } else {
                 LockScreenView(
-                    icon: "lock.doc.fill",
-                    title: "GİZLİ NOTLAR",
-                    subtitle: "Özel fikirlerinize erişmek için lütfen kimliğinizi doğrulayın.",
+                    icon: "lock.doc.fill", title: "GİZLİ NOTLAR",
+                    subtitle: "Özel fikirlerinizi korumak için lütfen doğrulama yapın.",
                     onUnlockTap: { noteVM.authenticateForPrivateNotes() }
                 )
                 .onAppear { noteVM.authenticateForPrivateNotes() }
@@ -188,12 +148,36 @@ private extension ContentView {
         }
     }
     
+    // MARK: - Navigation & Action Helpers
+    
+    func setupGlobalUI() {
+        // iOS Listelerin arka plan rengini temizleyerek şeffaf görünümü garantiler
+        UITableView.appearance().backgroundColor = .clear
+        UICollectionView.appearance().backgroundColor = .clear
+    }
+    
+    func handleAutoLock(for screen: ScreenType) {
+        // Eğer hedef kilitli ekranlardan biri değilse, eski kilitli ekranı arkadan kitle
+        if screen != .hiddenTasks { taskVM.lockVault() }
+        if screen != .hiddenNotes { noteVM.lockVault() }
+    }
+    
+    /// ✨ SENIOR FIX: Intent-Based Edge Swipe (Niyet Odaklı Kenar Çekmesi)
     var edgeDragHandler: some View {
         HStack {
             Color.clear
-                .frame(width: 30)
+                .frame(width: 25) // Tutma alanı daraltılarak kazara açılmalar önlendi
                 .contentShape(Rectangle())
-                .gesture(DragGesture().onEnded { if $0.translation.width > 50 && !isMenuOpen { toggleMenu() } })
+                .gesture(
+                    DragGesture()
+                        .onEnded { value in
+                            // Sadece yeterince mesafe VEYA parmak hızı (velocity) yüksekse açılır
+                            let isIntentionalPull = value.translation.width > 60 || value.predictedEndTranslation.width > 120
+                            if isIntentionalPull && !isMenuOpen {
+                                toggleMenu()
+                            }
+                        }
+                )
             Spacer()
         }
     }

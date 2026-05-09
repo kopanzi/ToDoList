@@ -1,103 +1,150 @@
 import Foundation
 import SwiftUI
-import Combine // ✨ SENIOR FIX: @Published ve ObservableObject hatalarını çözer
+import Combine
 
 /// Çöp kutusundaki her bir öğeyi temsil eden sarmalayıcı (Wrapper) model.
-struct TrashItem: Identifiable, Codable {
+/// Senior Notu: Codable ve Equatable olması, hem saklanmasını hem de liste güncellemelerini kolaylaştırır.
+struct TrashItem: Identifiable, Codable, Equatable {
     var id: String = UUID().uuidString
     let task: TaskModel?
     let note: NotModel?
     let deletedAt: Date
     
-    // UI için yardımcı değişkenler
+    // UI yardımcıları
     var title: String { task?.title ?? note?.baslik ?? "İsimsiz Öğeyi Kurtar" }
     var icon: String { task != nil ? "checklist" : "note.text" }
-    var colorHex: String { task != nil ? "f27f0d" : "3b82f6" } // Görevse Turuncu, Notsa Mavi
+    var colorHex: String { task != nil ? "f27f0d" : "3b82f6" }
+    
+    // Equatable uyumu için (Hız optimizasyonu)
+    static func == (lhs: TrashItem, rhs: TrashItem) -> Bool {
+        lhs.id == rhs.id
+    }
 }
 
-/// Silinen öğeleri geçici olarak saklayan, geri yükleyen ve zamanı gelince diskten temizleyen servis.
+/// Silinen öğeleri geçici olarak saklayan ve zamanı gelince diskten temizleyen merkezi servis.
+/// Senior Notu: @MainActor ile işaretlenerek UI güncellemelerinde thread-safety (iş parçacığı güvenliği) sağlanmıştır.
 @MainActor
 final class TrashManager: ObservableObject {
+    
+    // MARK: - Singleton & Constants
     static let shared = TrashManager()
-    private let storageKey = "yaver_trash_items"
+    private let storageKey = "yaver_trash_items_v2"
+    private let userDefaults = UserDefaults.standard
     
-    @Published var items: [TrashItem] = []
+    // MARK: - Published State
+    @Published private(set) var items: [TrashItem] = []
     
-    // Kullanıcının otomatik temizleme tercihi (Varsayılan: 30 Gün)
+    /// Kullanıcının otomatik temizleme tercihi (Varsayılan: 30 Gün)
     @Published var autoEmptyDays: Int {
         didSet {
-            UserDefaults.standard.set(autoEmptyDays, forKey: "trashAutoEmptyDays")
+            userDefaults.set(autoEmptyDays, forKey: "trashAutoEmptyDays")
             cleanUpOldItems()
         }
     }
     
+    // MARK: - Initialization
     private init() {
-        self.autoEmptyDays = UserDefaults.standard.object(forKey: "trashAutoEmptyDays") as? Int ?? 30
+        // Tercihleri ve öğeleri yükle
+        self.autoEmptyDays = userDefaults.object(forKey: "trashAutoEmptyDays") as? Int ?? 30
         loadItems()
-        cleanUpOldItems() // Uygulama açıldığında süresi dolanları otomatik temizle
+        
+        // Uygulama her açıldığında arka planda eski çöpleri temizle
+        cleanUpOldItems()
     }
     
-    // MARK: - Core Functions
+    // MARK: - Core Persistence (Kalıcılık)
     
     private func loadItems() {
-        guard let data = UserDefaults.standard.data(forKey: storageKey),
-              let decoded = try? JSONDecoder().decode([TrashItem].self, from: data) else { return }
-        self.items = decoded
-    }
-    
-    private func saveItems() {
-        if let encoded = try? JSONEncoder().encode(items) {
-            UserDefaults.standard.set(encoded, forKey: storageKey)
+        guard let data = userDefaults.data(forKey: storageKey) else { return }
+        
+        do {
+            self.items = try JSONDecoder().decode([TrashItem].self, from: data)
+        } catch {
+            print("🛑 TrashManager Load Error: \(error.localizedDescription)")
+            self.items = []
         }
     }
     
-    // MARK: - Çöpe Gönderme İşlemleri
+    private func saveItems() {
+        do {
+            let encoded = try JSONEncoder().encode(items)
+            userDefaults.set(encoded, forKey: storageKey)
+        } catch {
+            print("🛑 TrashManager Save Error: \(error.localizedDescription)")
+        }
+    }
+    
+    // MARK: - Çöpe Gönderme (Business Logic)
     
     func moveToTrash(task: TaskModel) {
         let item = TrashItem(task: task, note: nil, deletedAt: Date())
-        items.insert(item, at: 0) // En yeni silinen en üste gelsin
-        saveItems()
+        withAnimation(.spring()) {
+            items.insert(item, at: 0)
+            saveItems()
+        }
     }
     
     func moveToTrash(note: NotModel) {
         let item = TrashItem(task: nil, note: note, deletedAt: Date())
-        items.insert(item, at: 0)
-        saveItems()
+        withAnimation(.spring()) {
+            items.insert(item, at: 0)
+            saveItems()
+        }
     }
     
-    // MARK: - Geri Yükleme ve Kalıcı Silme
+    // MARK: - Geri Yükleme ve Temizlik
     
-    /// Öğeyi çöp kutusu listesinden çıkarır (Geri yüklendiğinde çalışır)
+    /// Öğeyi çöp kutusu listesinden çıkarır (Geri yükleme durumunda).
     func removeItem(_ item: TrashItem) {
         items.removeAll { $0.id == item.id }
         saveItems()
     }
     
-    /// Öğeyi ve ona bağlı tüm ağır medyaları diskten "KALICI" olarak siler.
+    /// Öğeyi ve ona bağlı ağır medyaları (Görsel/Ses) diskten kalıcı olarak yok eder.
+    /// Senior Notu: Storage Anti-Leak mekanizması burada çalışır.
     func permanentlyDelete(_ item: TrashItem) {
-        // Medya Temizliği (Storage Anti-Leak)
+        let mediaManager = MediaManager.shared
+        
+        // 1. Göreve bağlı medyaları temizle
         if let task = item.task {
-            task.imageIDs.forEach { MediaManager.shared.deleteFile(id: $0, fileExtension: "jpg") }
-            if let audioID = task.audioID { MediaManager.shared.deleteFile(id: audioID, fileExtension: "m4a") }
-        } else if let note = item.note {
-            note.gorselIDListesi.forEach { MediaManager.shared.deleteFile(id: $0, fileExtension: "jpg") }
-            if let audioID = note.sesID { MediaManager.shared.deleteFile(id: audioID, fileExtension: "m4a") }
+            task.imageIDs.forEach { mediaManager.deleteFile(id: $0, fileExtension: "jpg") }
+            if let audioID = task.audioID { mediaManager.deleteFile(id: audioID, fileExtension: "m4a") }
+        }
+        // 2. Nota bağlı medyaları temizle
+        else if let note = item.note {
+            note.gorselIDListesi.forEach { mediaManager.deleteFile(id: $0, fileExtension: "jpg") }
+            if let audioID = note.sesID { mediaManager.deleteFile(id: audioID, fileExtension: "m4a") }
         }
         
-        removeItem(item)
+        // 3. Listeden ve bellekten uçur
+        withAnimation(.easeOut) {
+            removeItem(item)
+        }
     }
     
-    /// Kullanıcı manuel olarak 'Tümünü Temizle' dediğinde çalışır.
+    /// Çöp kutusundaki her şeyi tek hamlede temizler.
     func emptyTrash() {
-        items.forEach { permanentlyDelete($0) }
+        let allItems = items
+        items.removeAll() // UI'ı anında hafiflet
+        saveItems()
+        
+        // Ağır disk temizliğini arka arkaya yap
+        allItems.forEach { permanentlyDelete($0) }
     }
     
-    /// Ayarlanan süreyi (Örn: 30 Gün) aşan öğeleri otomatik tespit eder ve sessizce yok eder.
+    /// Süresi dolan çöpleri otomatik tespit eder (Örn: 30 günden eski olanlar).
     func cleanUpOldItems() {
-        guard autoEmptyDays > 0 else { return } // 0 ise hiçbir zaman silme demek (Ekstra ayar)
-        let thresholdDate = Calendar.current.date(byAdding: .day, value: -autoEmptyDays, to: Date()) ?? Date()
+        guard autoEmptyDays > 0 else { return }
         
+        let calendar = Calendar.current
+        guard let thresholdDate = calendar.date(byAdding: .day, value: -autoEmptyDays, to: Date()) else { return }
+        
+        // Kriterlere uyanları filtrele
         let itemsToDelete = items.filter { $0.deletedAt < thresholdDate }
-        itemsToDelete.forEach { permanentlyDelete($0) }
+        
+        if !itemsToDelete.isEmpty {
+            print("🧹 Otomatik Temizlik: \(itemsToDelete.count) adet eski öğe siliniyor.")
+            itemsToDelete.forEach { permanentlyDelete($0) }
+        }
     }
 }

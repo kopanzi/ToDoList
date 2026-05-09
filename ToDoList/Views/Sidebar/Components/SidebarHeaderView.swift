@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Sidebar'ın en üstünde yer alan, kullanıcı profilini, rütbesini ve XP bilgisini gösteren premium bileşen.
-/// Senior Notu: Mevcut yapın tamamen korunarak AvatarView ve dinamik isim (AppStorage) ile zenginleştirildi.
+/// Senior Notu: Statik beyaz/siyah ve neon renkler kaldırılarak Tema Motoruna (AppearanceManager)
+/// ve Apple'ın Adaptive (Aydınlık/Karanlık mod) tasarım standartlarına geçirilmiştir.
 struct SidebarHeaderView: View {
     // MARK: - Properties
     let rankName: String
@@ -9,7 +10,10 @@ struct SidebarHeaderView: View {
     let xp: Int
     let progress: Double // 0.0 - 1.0 arası seviye ilerlemesi
     
-    // ✨ SENIOR DOKUNUŞU: Kullanıcı adını anlık olarak cihaz hafızasından okuyoruz
+    // ✨ SENIOR FIX: Uygulamanın aktif temasını dinler
+    @EnvironmentObject var appearance: AppearanceManager
+    
+    // Kullanıcı adını anlık olarak cihaz hafızasından okuyoruz
     @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
     
     var body: some View {
@@ -17,14 +21,14 @@ struct SidebarHeaderView: View {
             
             // 1. KULLANICI PROFİLİ VE RÜTBE ROZETİ
             HStack(spacing: 16) {
-                // Önceden yaptığımız Aura efektli Avatar bileşeni
+                // Önceden yaptığımız Aura efektli Avatar bileşeni (Kendi içinde temaya uyumludur)
                 AvatarView(size: 55, showAura: true)
                 
                 VStack(alignment: .leading, spacing: 6) {
                     // Kullanıcı İsmi
                     Text(userName)
                         .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary) // ✨ Adaptive
                         .lineLimit(1)
                     
                     // Şık Rütbe Rozeti (Badge)
@@ -36,14 +40,15 @@ struct SidebarHeaderView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.12))
-                    .foregroundColor(.white.opacity(0.9))
+                    // ✨ SENIOR FIX: Aydınlık ve karanlık moda uyumlu rozet arka planı
+                    .background(Color.primary.opacity(0.05))
+                    .foregroundColor(.secondary)
                     .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
                 }
             }
             
-            // 2. XP VE NEON İLERLEME ÇUBUĞU
+            // 2. XP VE TEMA RENKLİ İLERLEME ÇUBUĞU
             VStack(alignment: .trailing, spacing: 8) {
                 HStack {
                     HStack(spacing: 4) {
@@ -51,32 +56,35 @@ struct SidebarHeaderView: View {
                         Text("\(xp) XP")
                     }
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(Color(hex: "0df2cc")) // Neon Teal
+                    // ✨ SENIOR FIX: Sabit renk yerine kullanıcının seçtiği Tema Rengi
+                    .foregroundColor(appearance.accentColor)
                     
                     Spacer()
                     
                     Text("%\(Int(progress * 100))")
                         .font(.system(size: 10, weight: .black))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.secondary) // ✨ Adaptive
                 }
                 
-                // İlerleme Barı (Senin GeometryReader mantığınla)
+                // İlerleme Barı
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(Color.black.opacity(0.3))
+                            // ✨ SENIOR FIX: Zemin rengi Adaptive yapıldı
+                            .fill(Color.primary.opacity(0.1))
                             .frame(height: 6)
                         
                         Capsule()
                             .fill(
                                 LinearGradient(
-                                    colors: [Color(hex: "0df2cc"), .blue],
+                                    // ✨ SENIOR FIX: Dolum efekti Tema Renginden beslenir
+                                    colors: [appearance.accentColor, appearance.accentColor.opacity(0.6)],
                                     startPoint: .leading,
                                     endPoint: .trailing
                                 )
                             )
                             .frame(width: max(0, geo.size.width * CGFloat(progress)), height: 6)
-                            .shadow(color: Color(hex: "0df2cc").opacity(0.5), radius: 5, x: 0, y: 0)
+                            .shadow(color: appearance.accentColor.opacity(0.5), radius: 5, x: 0, y: 0)
                     }
                 }
                 .frame(height: 6)
@@ -85,15 +93,15 @@ struct SidebarHeaderView: View {
         .padding(.top, 60) // Çentik (Notch) payı
         .padding(.horizontal, 24)
         .padding(.bottom, 25)
-        // ✨ YENİ: Arka plana çok hafif bir cam efekti koyuyoruz ki menüden ayrılsın
+        // ✨ YENİ: Adaptive Cam Efekti
         .background(
-            Color.white.opacity(0.02)
-                .background(.ultraThinMaterial.opacity(0.4))
-                // Alt kısımdan yumuşakça eriyerek kaybolan (fade out) ince bir çizgi
+            Color.primary.opacity(0.02)
+                .background(.ultraThinMaterial.opacity(0.6))
+                // Alt kısımdan yumuşakça eriyerek kaybolan (fade out) ince bir ayraç çizgisi
                 .overlay(
                     Rectangle()
                         .frame(height: 1)
-                        .foregroundColor(Color.white.opacity(0.05)),
+                        .foregroundColor(Color.primary.opacity(0.05)),
                     alignment: .bottom
                 )
         )
@@ -103,8 +111,8 @@ struct SidebarHeaderView: View {
 // MARK: - Preview
 #Preview {
     ZStack {
-        // Sidebar arka planını simüle etmek için
-        Color(hex: "020807").ignoresSafeArea()
+        // Sistem arka planını simüle etmek için
+        Color(uiColor: .systemBackground).ignoresSafeArea()
         
         VStack {
             SidebarHeaderView(
@@ -116,4 +124,6 @@ struct SidebarHeaderView: View {
             Spacer()
         }
     }
+    // ✨ SENIOR FIX: Preview'ın çökmemesi için
+    .environmentObject(AppearanceManager.shared)
 }

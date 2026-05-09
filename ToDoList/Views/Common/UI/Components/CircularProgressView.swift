@@ -1,14 +1,15 @@
 import SwiftUI
 
 /// Kullanıcının rütbe ilerlemesini veya herhangi bir yüzde değerini gösteren dairesel grafik.
-/// Senior Notu: Animasyonlu geçişler ve özel çizgi uçları (lineCap) ile premium bir his sağlar.
+/// Senior Notu: Statik beyaz metinler (.white) kaldırılarak Aydınlık/Karanlık mod
+/// uyumu (.primary) sağlanmış ve premium bir his katılmıştır.
 struct CircularProgressView: View {
     // MARK: - Properties
     
     /// 0.0 ile 1.0 arasında ilerleme değeri.
     let progress: Double
     
-    /// Çubuğun ana rengi (Neon Teal varsayılan).
+    /// Çubuğun ana rengi (Dışarıdan veya temadan gelir).
     let color: Color
     
     /// Çizgi kalınlığı.
@@ -46,7 +47,8 @@ struct CircularProgressView: View {
                 VStack(spacing: 0) {
                     Text("\(Int(progress * 100))%")
                         .font(.system(size: 11, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
+                        // ✨ SENIOR FIX: Sabit .white yerine Adaptive .primary kullanıldı
+                        .foregroundColor(.primary)
                 }
             }
         }
@@ -58,11 +60,11 @@ struct CircularProgressView: View {
 // MARK: - Preview Section
 #Preview {
     ZStack {
-        // Koyu zemin üzerinde test edelim
-        Color(hex: "020807").ignoresSafeArea()
+        // Zemin üzerinde test
+        Color.primary.opacity(0.05).ignoresSafeArea()
         
         VStack(spacing: 40) {
-            CircularProgressView(progress: 0.75, color: Color(hex: "0df2cc"))
+            CircularProgressView(progress: 0.75, color: .teal)
                 .frame(width: 80, height: 80)
             
             HStack(spacing: 30) {

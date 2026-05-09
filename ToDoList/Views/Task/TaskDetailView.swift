@@ -2,8 +2,8 @@ import SwiftUI
 import PhotosUI
 
 /// Görev notlarını düzenleme özelliklerini yöneten detay ekranı.
-/// Senior Notu: Kamera ve Galeri entegrasyonu MVVM yapısına uygun olarak yeniden bağlandı.
-/// Resim silme ve tam ekran önizleme yetenekleri eklendi. (Gemini AI bağımlılıkları temizlenmiştir)
+/// Senior Notu: Orkestratör View'dır. Klavye yönetimi (Bitti butonu) eklendi,
+/// arkaplan uyumluluğu garantilendi ve bileşenlerin modülerliği korundu.
 struct TaskDetailView: View {
     // MARK: - Properties
     let task: TaskModel
@@ -14,53 +14,74 @@ struct TaskDetailView: View {
     @State private var selectedItem: PhotosPickerItem? = nil
     @State private var showCamera = false
     
-    // ✨ YENİ: Tam ekran önizlemeyi tetikleyen yapı
+    // Tam ekran önizlemeyi tetikleyen yapı
     @State private var previewItem: ImagePreviewItem? = nil
     
     @Environment(\.dismiss) var dismiss
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 25) {
-                // 1. BAŞLIK VE DURUM
-                TaskDetailHeaderView(task: task)
-                
-                // 2. BİLGİ KARTI
-                TaskDetailInfoView(task: task)
-                
-                // 3. EDİTÖR (DÜZENLEME ALANI)
-                TaskDetailEditorView(noteText: $noteText)
-                
-                // 4. MEDYA BÖLÜMÜ
-                TaskDetailMediaView(
-                    task: task,
-                    viewModel: viewModel,
-                    selectedItem: $selectedItem,
-                    onCameraTap: { triggerCameraSafe() }, // ✨ SENIOR FIX: Güvenli kamera tetikleyicisi
-                    onImageTap: { image in
-                        // ✨ YENİ: Tıklanan resmi tam ekran aç
-                        previewItem = ImagePreviewItem(image: image)
-                    },
-                    onImageDelete: { imageID in
-                        // ✨ YENİ: Hem listeden hem de diskten güvenle sil (Anti-Leak)
-                        HapticManager.shared.triggerMediumImpact()
-                        withAnimation {
-                            if let index = viewModel.tasks.firstIndex(where: { $0.id == task.id }) {
-                                viewModel.tasks[index].imageIDs.removeAll(where: { $0 == imageID })
-                                MediaManager.shared.deleteFile(id: imageID, fileExtension: "jpg")
+        ZStack {
+            // Arkaplanın ContentView'dan gelen Sistem Rengini (Adaptive) almasını sağlarız
+            Color.clear.ignoresSafeArea()
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 25) {
+                    // 1. BAŞLIK VE DURUM
+                    TaskDetailHeaderView(task: task)
+                    
+                    // 2. BİLGİ KARTI
+                    TaskDetailInfoView(task: task)
+                    
+                    // 3. EDİTÖR (DÜZENLEME ALANI)
+                    TaskDetailEditorView(noteText: $noteText)
+                    
+                    // 4. MEDYA BÖLÜMÜ
+                    TaskDetailMediaView(
+                        task: task,
+                        viewModel: viewModel,
+                        selectedItem: $selectedItem,
+                        onCameraTap: { triggerCameraSafe() }, // Güvenli kamera tetikleyicisi
+                        onImageTap: { image in
+                            HapticManager.shared.triggerLightImpact()
+                            previewItem = ImagePreviewItem(image: image)
+                        },
+                        onImageDelete: { imageID in
+                            // Hem listeden hem de diskten güvenle sil (Anti-Leak)
+                            HapticManager.shared.triggerMediumImpact()
+                            withAnimation {
+                                if let index = viewModel.tasks.firstIndex(where: { $0.id == task.id }) {
+                                    viewModel.tasks[index].imageIDs.removeAll(where: { $0 == imageID })
+                                    MediaManager.shared.deleteFile(id: imageID, fileExtension: "jpg")
+                                }
                             }
                         }
-                    }
-                )
+                    )
+                }
+                .padding()
+                // ✨ SENIOR FIX: Ekranı aşağı kaydırdığında içerik dibe yapışmasın diye ekstra boşluk
+                .padding(.bottom, 40)
             }
-            .padding()
         }
         .onAppear { noteText = task.note }
         .onDisappear {
             // Çıkarken otomatik kaydet
             viewModel.updateTaskNote(task: task, newNote: noteText)
         }
+        .navigationTitle("Görev Detayı")
         .navigationBarTitleDisplayMode(.inline)
+        // ✨ SENIOR UX FIX: Klavye kapatma asistanı
+        .toolbar {
+            ToolbarItem(placement: .keyboard) {
+                HStack {
+                    Spacer()
+                    Button("Bitti") {
+                        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                    }
+                    .bold()
+                    .foregroundColor(appearance.accentColor) // ✨ Tema Rengi
+                }
+            }
+        }
         
         // ✨ FIX 1: GALERİ BAĞLANTISI (iOS 17 Uyumlu)
         // Galeriden fotoğraf seçildiği an bu blok tetiklenir ve resmi TaskViewModel'e kaydeder.

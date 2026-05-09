@@ -2,16 +2,19 @@ import SwiftUI
 import Combine
 
 /// iOS 18 MeshGradient kullanarak akışkan ve performanslı arka planlar çizen bileşen.
-/// Senior Notu: Matematiksel olarak çizildiği için pil dostudur ve Combine ile animasyon döngüsü yönetilir.
+/// Senior Notu: Matematiksel olarak çizildiği için pil dostudur. Ek olarak ScenePhase entegrasyonu
+/// yapılarak uygulama arka plandayken (Background) gereksiz GPU/CPU tüketimi (Battery Drain) engellenmiştir.
 struct MeshGradientView: View {
     let colors: [Color]
     @State private var t: Float = 0.0
     
+    // ✨ SENIOR FIX 1: Uygulamanın o anki durumunu (Aktif, Arka Plan, Kapalı) dinler
+    @Environment(\.scenePhase) private var scenePhase
+    
     // Animasyon döngüsü (Combine Publisher)
-    // autoconnect() sayesinde view ekranda olduğu sürece yayın yapar.
     let timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
     
-    // ✨ SENIOR FIX: MeshGradient(width: 3, height: 3) fonksiyonu KESİNLİKLE 9 renk ister.
+    // MeshGradient(width: 3, height: 3) fonksiyonu KESİNLİKLE 9 renk ister.
     // Dışarıdan 3 renk gelse bile, bunu 9'lu estetik bir palete (şablona) genişletiyoruz.
     private var expandedColors: [Color] {
         guard let c1 = colors.first else { return Array(repeating: .clear, count: 9) }
@@ -27,39 +30,38 @@ struct MeshGradientView: View {
     }
     
     var body: some View {
-        if #available(iOS 18.0, *) {
-            MeshGradient(
-                width: 3,
-                height: 3,
-                points: [
-                    [0, 0], [0.5, 0], [1, 0],
-                    [0, 0.5], [sin(t)*0.2 + 0.5, cos(t)*0.2 + 0.5], [1, 0.5],
-                    [0, 1], [0.5, 1], [1, 1]
-                ],
-                // Gelen 3 rengi değil, genişletilmiş 9 rengi veriyoruz!
-                colors: expandedColors
-            )
-            .ignoresSafeArea()
-            .onReceive(timer) { _ in
-                // Renk geçişlerini yumuşatmak için t değerini güncelliyoruz
-                withAnimation(.easeInOut(duration: 2)) {
-                    t += 0.5
-                }
+        Group {
+            if #available(iOS 18.0, *) {
+                MeshGradient(
+                    width: 3,
+                    height: 3,
+                    points: [
+                        [0, 0], [0.5, 0], [1, 0],
+                        [0, 0.5], [sin(t)*0.2 + 0.5, cos(t)*0.2 + 0.5], [1, 0.5],
+                        [0, 1], [0.5, 1], [1, 1]
+                    ],
+                    // Gelen 3 rengi değil, genişletilmiş 9 rengi veriyoruz!
+                    colors: expandedColors
+                )
+            } else {
+                // ✨ SENIOR FIX 2: iOS 18 altı (iOS 17) için yedek planı daha da "Mesh" hissi verecek
+                // şekilde güncelledik. Artık hem X hem Y ekseninde dönen bir sıvı (Fluid) gibi hareket eder.
+                LinearGradient(
+                    colors: colors.count >= 3 ? [colors[0], colors[1], colors[2]] : colors,
+                    startPoint: UnitPoint(x: 0.5 + CGFloat(sin(t)*0.5), y: 0.5 - CGFloat(cos(t)*0.5)),
+                    endPoint: UnitPoint(x: 0.5 - CGFloat(sin(t)*0.5), y: 0.5 + CGFloat(cos(t)*0.5))
+                )
             }
-        } else {
-            // ✨ SENIOR FIX: iOS 18 altı (Senin Cihazın - iOS 17) için yedek plan.
-            // Artık statik değil! Renklerin başlangıç ve bitiş noktaları zamanla (t)
-            // dairesel bir yörüngede (sin/cos) yavaşça hareket ediyor.
-            LinearGradient(
-                colors: colors.count >= 3 ? [colors[0], colors[1], colors[2]] : colors,
-                startPoint: UnitPoint(x: 0.5 + CGFloat(sin(t)*0.3), y: 0),
-                endPoint: UnitPoint(x: 0.5 - CGFloat(cos(t)*0.3), y: 1)
-            )
-            .ignoresSafeArea()
-            .onReceive(timer) { _ in
-                withAnimation(.easeInOut(duration: 2)) {
-                    t += 0.5
-                }
+        }
+        .ignoresSafeArea()
+        .onReceive(timer) { _ in
+            // ✨ SENIOR FIX 3: Uygulama ön planda değilse (Kilitli veya ana ekrandaysa)
+            // animasyonu çalıştırma. Bu sayede pil sömürmesinin (Battery Drain) önüne geçilir.
+            guard scenePhase == .active else { return }
+            
+            // Renk geçişlerini yumuşatmak için t değerini güncelliyoruz
+            withAnimation(.easeInOut(duration: 2.0)) {
+                t += 0.5
             }
         }
     }

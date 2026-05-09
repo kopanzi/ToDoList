@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Takvim ekranının alt yarısında yer alan, seçili günün görevlerini
 /// zaman çizelgesi (timeline) formatında gösteren bileşen.
-/// Senior Notu: Glassmorphism efektleriyle zenginleştirilmiş,
-/// görev ekleme sorumluluğu ana görünüme (CalendarView) devredilmiştir.
+/// Senior Notu: Glassmorphism efektleriyle zenginleştirilmiş, statik beyazlar temizlenerek
+/// aydınlık/karanlık mod uyumu (Adaptive UI) sağlanmıştır.
 struct DailyFlowListView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: CalendarViewModel
@@ -27,12 +27,14 @@ struct DailyFlowListView: View {
                     VStack(spacing: 16) {
                         Image(systemName: "cup.and.saucer.fill")
                             .font(.system(size: 40))
-                            .foregroundColor(.white.opacity(0.2))
+                            // ✨ SENIOR FIX: .white yerine .primary kullanıldı
+                            .foregroundColor(.primary.opacity(0.2))
                             .padding(.top, 40)
                         
                         Text("Bu gün için planlanmış bir görev yok.")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.white.opacity(0.5))
+                            // ✨ SENIOR FIX: .white yerine .secondary kullanıldı
+                            .foregroundColor(.secondary)
                         
                         Button(action: {
                             HapticManager.shared.triggerLightImpact()
@@ -74,9 +76,8 @@ private extension DailyFlowListView {
         HStack {
             Text(isToday ? "Bugünün Akışı" : "Günlük Akış")
                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-            
-            // LVL Yazısı kaldırıldı, odak sadece listeye verildi.
+                // ✨ SENIOR FIX: Aydınlık/Karanlık mod duyarlı
+                .foregroundColor(.primary)
             
             Spacer()
             
@@ -87,9 +88,11 @@ private extension DailyFlowListView {
             }) {
                 Image(systemName: "plus")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
+                    // ✨ SENIOR FIX: İkon rengi .primary yapıldı
+                    .foregroundColor(.primary)
                     .frame(width: 32, height: 32)
-                    .background(Color.white.opacity(0.1))
+                    // ✨ SENIOR FIX: Arka plan .primary.opacity ile zenginleştirildi
+                    .background(Color.primary.opacity(0.1))
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
@@ -117,17 +120,18 @@ struct TaskTimelineRow: View {
             VStack(spacing: 2) {
                 Text(formatHour(date: task.createdAt))
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
-                    .foregroundColor(task.isCompleted ? .white.opacity(0.4) : .white.opacity(0.8))
+                    // ✨ SENIOR FIX: Saatler aydınlık modda okunur hale geldi
+                    .foregroundColor(task.isCompleted ? .primary.opacity(0.4) : .primary.opacity(0.8))
                 
                 Text(formatAmPm(date: task.createdAt))
                     .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .foregroundColor(.white.opacity(0.4))
+                    .foregroundColor(.primary.opacity(0.4))
             }
             .frame(width: 60)
             
             // AYRAÇ ÇİZGİSİ
             Rectangle()
-                .fill(Color.white.opacity(0.1))
+                .fill(Color.primary.opacity(0.1)) // ✨ SENIOR FIX
                 .frame(width: 1)
                 .padding(.vertical, 10)
             
@@ -138,7 +142,8 @@ struct TaskTimelineRow: View {
                     Text(task.title)
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .strikethrough(task.isCompleted)
-                        .foregroundColor(task.isCompleted ? .white.opacity(0.4) : .white)
+                        // ✨ SENIOR FIX: Beyaz yerine Primary
+                        .foregroundColor(task.isCompleted ? .primary.opacity(0.4) : .primary)
                         .lineLimit(2)
                     
                     Spacer()
@@ -161,7 +166,7 @@ struct TaskTimelineRow: View {
                 if !task.note.isEmpty {
                     Text(task.note)
                         .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.secondary) // ✨ SENIOR FIX
                         .lineLimit(1)
                 }
                 
@@ -189,10 +194,11 @@ struct TaskTimelineRow: View {
                     // Oyunlaştırma: Potansiyel veya Kazanılan XP
                     Text(task.isCompleted ? "TAMAMLANDI" : "+10 XP")
                         .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .foregroundColor(task.isCompleted ? .green.opacity(0.8) : .white.opacity(0.4))
+                        // ✨ SENIOR FIX: Gelişmiş kontrast
+                        .foregroundColor(task.isCompleted ? .green.opacity(0.8) : .primary.opacity(0.4))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.white.opacity(0.05))
+                        .background(Color.primary.opacity(0.05))
                         .clipShape(Capsule())
                 }
                 .padding(.top, 4)
@@ -201,29 +207,34 @@ struct TaskTimelineRow: View {
             .padding(.vertical, 14)
             .padding(.trailing, 16)
         }
-        // ✨ GLASSMORPHISM EFEKTİ
+        // ✨ GLASSMORPHISM EFEKTİ (Adaptive)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(task.isCompleted ? 0.01 : 0.03))
+                // ✨ SENIOR FIX: .white yerine .primary kullanılarak Aydınlık Moda uyum sağlandı
+                .fill(Color.primary.opacity(task.isCompleted ? 0.01 : 0.03))
                 .background(.ultraThinMaterial.opacity(task.isCompleted ? 0.4 : 0.8))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(task.isCompleted ? 0.02 : 0.08), lineWidth: 1)
+                .stroke(Color.primary.opacity(task.isCompleted ? 0.02 : 0.08), lineWidth: 1)
         )
         .opacity(task.isCompleted ? 0.6 : 1.0)
+        // Zaman Yolculuğu için görevi sürüklenebilir yapıyoruz
+        .onDrag {
+            NSItemProvider(object: task.id as NSString)
+        }
     }
     
     // MARK: - Date Formatters
     func formatHour(date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm" // 24 saatlik format için "HH", 12 saatlik için "hh"
+        formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
     }
     
     func formatAmPm(date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "a" // AM / PM
+        formatter.dateFormat = "a"
         return formatter.string(from: date)
     }
 }

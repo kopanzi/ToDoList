@@ -1,14 +1,23 @@
 import SwiftUI
 
-/// Bir başarı rozetine tıklandığında alttan açılan detay kartı.
+/// Bir başarı rozetine tıklandığında alttan açılan detay kartı (Sheet).
+/// Senior Notu: Arka plan Tema Motoruna bağlandı. Cihaz aydınlık veya karanlık modda olsa bile
+/// seçili tema rengi (Örn: Mor, Mavi) arka planda hafif bir renk filtresi olarak hissettirilir.
 struct AchievementDetailView: View {
     let achievement: Achievement
     @Environment(\.dismiss) var dismiss
     
+    // ✨ SENIOR FIX: Tema motorunu dahil ettik
+    @EnvironmentObject var appearance: AppearanceManager
+    
     var body: some View {
         ZStack {
-            // Arka Plan
-            Color(hex: "020807").ignoresSafeArea()
+            // ✨ SENIOR FIX: Hem aydınlık/karanlık mod uyumlu zemin hem de üzerine Tema Rengi (Tint)
+            ZStack {
+                Color(uiColor: .systemGroupedBackground)
+                appearance.accentColor.opacity(0.06) // Temanın ruhunu yansıtan hafif şeffaf renk
+            }
+            .ignoresSafeArea()
             
             VStack(spacing: 24) {
                 // 1. Büyük ve Parlayan Rozet İkonu
@@ -16,7 +25,7 @@ struct AchievementDetailView: View {
                     Circle()
                         .fill(
                             LinearGradient(
-                                colors: achievement.isUnlocked ? achievement.colors : [.gray.opacity(0.3)],
+                                colors: achievement.isUnlocked ? achievement.colors : [Color.gray.opacity(0.3)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             )
@@ -26,7 +35,8 @@ struct AchievementDetailView: View {
                     
                     Image(systemName: achievement.isUnlocked ? achievement.iconName : "lock.fill")
                         .font(.system(size: 45, weight: .bold))
-                        .foregroundColor(achievement.isUnlocked ? .white : .white.opacity(0.5))
+                        // ✨ SENIOR FIX: Kilitliyken sistem rengine (Adaptive) uyar, açıkken renkli zeminde beyaz kalır.
+                        .foregroundColor(achievement.isUnlocked ? .white : Color.primary.opacity(0.5))
                 }
                 .padding(.top, 30)
                 
@@ -34,11 +44,11 @@ struct AchievementDetailView: View {
                 VStack(spacing: 12) {
                     Text(achievement.title)
                         .font(.system(.title, design: .rounded).bold())
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary) // ✨ Adaptive
                     
                     Text(achievement.description)
                         .font(.body)
-                        .foregroundColor(.white.opacity(0.7))
+                        .foregroundColor(.secondary) // ✨ Adaptive
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 30)
                 }

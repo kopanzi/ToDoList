@@ -2,12 +2,16 @@ import SwiftUI
 
 /// Sidebar içindeki her bir tıklanabilir menü satırı.
 /// Senior Notu: İkonların sabit genişlikte tutulması, metinlerin jilet gibi hizalanmasını sağlar.
+/// Statik beyaz renkler kaldırılarak Tema Motoru (AppearanceManager) ve Adaptive UI uyumu eklendi.
 struct SidebarMenuItemView: View {
     // MARK: - Properties
     let title: String
     let icon: String
     let isSelected: Bool
     let action: () -> Void
+    
+    // ✨ SENIOR FIX: Uygulamanın aktif temasını dinler
+    @EnvironmentObject var appearance: AppearanceManager
     
     var body: some View {
         Button(action: {
@@ -29,20 +33,22 @@ struct SidebarMenuItemView: View {
                 
                 Spacer()
                 
-                // 3. SEÇİM GÖSTERGESİ (Aktif satırın sağında beyaz bir çubuk)
+                // 3. SEÇİM GÖSTERGESİ (Aktif satırın sağında vurgu çubuğu)
                 if isSelected {
                     Capsule()
                         .frame(width: 4, height: 18)
-                        .foregroundColor(.white)
+                        // ✨ SENIOR FIX: Sabit beyaz yerine Tema Rengi
+                        .foregroundColor(appearance.accentColor)
                         .transition(.scale.combined(with: .opacity))
                 }
             }
-            .foregroundColor(isSelected ? .white : .white.opacity(0.6))
+            // ✨ SENIOR FIX: Seçiliyken Tema Rengi, değilken Adaptive (.primary)
+            .foregroundColor(isSelected ? appearance.accentColor : .primary.opacity(0.7))
             .padding(.horizontal, 20)
-            .padding(.vertical, 8)
+            .padding(.vertical, 10) // Tıklama alanı biraz daha ferahlatıldı
             .background(
-                // Seçili olan satırın arkasına çok hafif bir parlaklık ekliyoruz
-                isSelected ? Color.white.opacity(0.1) : Color.clear
+                // ✨ SENIOR FIX: Seçili olan satırın arkasına Tema Rengiyle çok hafif bir parlaklık ekliyoruz
+                isSelected ? appearance.accentColor.opacity(0.12) : Color.clear
             )
             .contentShape(Rectangle()) // Boş alanlara da tıklanabilmesi için
         }
@@ -53,10 +59,13 @@ struct SidebarMenuItemView: View {
 // MARK: - Preview
 #Preview {
     ZStack {
-        Color.blue.ignoresSafeArea()
+        // ✨ SENIOR FIX: Sistem arkaplanında test edebilmek için
+        Color(uiColor: .systemBackground).ignoresSafeArea()
+        
         VStack(spacing: 5) {
             SidebarMenuItemView(title: "Tüm Görevler", icon: "checklist", isSelected: true, action: {})
             SidebarMenuItemView(title: "Gizli Kasa", icon: "lock.shield.fill", isSelected: false, action: {})
         }
     }
+    .environmentObject(AppearanceManager.shared) // Preview çökmesini engeller
 }

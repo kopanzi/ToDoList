@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Görevlerin listelendiği ana ekran. (Stitch Glassmorphism Design)
-/// Senior Notu: Akıllı görev gruplandırma, hızlı filtreleme, çift yönlü kaydırma,
-/// efsanevi "Zen Odak Modu" (Pinch-to-Zoom gesture ile), Rutin Atlama ve Takvim/İstatistik entegrasyonu içerir.
+/// Görevlerin listelendiği ana ekran. (Adaptive Design)
+/// Senior Notu: Tüm statik renkler (örn. .white, .black) kaldırılarak
+/// Apple'ın Semantik renkleri (.primary, .secondary) ve Material tasarım dilleri kullanıldı.
+/// Bu sayede aydınlık ve karanlık modda kusursuz okunabilirlik sağlanır.
 struct TaskListView: View {
     // MARK: - Quick Filter Enum
     enum QuickFilter: Equatable {
@@ -70,7 +71,6 @@ struct TaskListView: View {
                         CalendarView(taskVM: viewModel, onMenuTap: onMenuTap)
                             .transition(.opacity)
                     case .stats:
-                        // ✨ SENIOR FIX: Yakında yazısını sildik, İstatistik Şaheserimizi bağladık!
                         StatisticsView()
                             .transition(.opacity)
                     case .profile:
@@ -78,12 +78,10 @@ struct TaskListView: View {
                             .transition(.opacity)
                     }
                 }
-                // ✨ SENIOR UX FIX: Sekmeler arası geçişte pürüzsüz animasyon
                 .animation(.spring(response: 0.4, dampingFraction: 0.8), value: selectedTab)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 
                 // 2. ALT NAVİGASYON BARI
-                // Ekranlar arası geçişte barın sabit kalması için optimize edildi
                 if selectedTab == .home || selectedTab == .stats {
                     bottomNavigationBar
                         .transition(.move(edge: .bottom))
@@ -113,7 +111,7 @@ private extension TaskListView {
         // 1. Temel Filtreleme
         var tasks = viewModel.getFilteredTasks(category: filterCategory, showPrivate: showPrivateOnly, searchText: searchText)
         
-        // 2. Hızlı Filtreleme (Sadece ana sayfadaysak)
+        // 2. Hızlı Filtreleme
         if filterCategory == nil && !showPrivateOnly {
             switch selectedQuickFilter {
             case .all: break
@@ -133,9 +131,6 @@ private extension TaskListView {
             // --- 1. ÜST BÖLÜM (Header, Arama, Baloncuklar) ---
             VStack(spacing: 24) {
                 customTopBar
-                
-                // 🧹 SENIOR CLEANUP: Eski "Daily Motto" (isAIMottoEnabled) kısımları buradan temizlendi!
-                
                 customSearchBar
                 
                 if filterCategory == nil && !showPrivateOnly {
@@ -170,14 +165,14 @@ private extension TaskListView {
                         ForEach(urgentTasks) { task in taskRowWrapper(task: task) }
                         
                         if !standardTasks.isEmpty {
-                            sectionHeader(title: "🎯 " + sectionTitle, color: .white)
+                            sectionHeader(title: "🎯 " + sectionTitle, color: .primary)
                             ForEach(standardTasks) { task in taskRowWrapper(task: task) }
                         }
                     }
                 }
-                // 🎯 STANDART BÖLÜM (Acil yoksa veya ayrı gösteriliyorsa)
+                // 🎯 STANDART BÖLÜM
                 else if !standardTasks.isEmpty {
-                    sectionHeader(title: "🎯 " + sectionTitle, color: .white)
+                    sectionHeader(title: "🎯 " + sectionTitle, color: .primary)
                     ForEach(standardTasks) { task in taskRowWrapper(task: task) }
                 }
                 
@@ -198,13 +193,13 @@ private extension TaskListView {
                 .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
+        // Arka planı ContentView'daki Sistem Rengine devreder
         .scrollContentBackground(.hidden)
-        .scrollDismissesKeyboard(.interactively) // ✨ SENIOR UX FIX: Kaydırırken klavye akıllıca gizlenir
+        .scrollDismissesKeyboard(.interactively)
     }
     
     // MARK: - Zen Mode Helpers
     
-    /// Odak Modu (Zen Mode) için en acil ve en eski tek bir görevi seçer.
     func getZenTask() -> TaskModel? {
         let activeTasks = viewModel.tasks.filter { !$0.isCompleted && !$0.isPrivate }
         guard !activeTasks.isEmpty else { return nil }
@@ -216,8 +211,8 @@ private extension TaskListView {
         return activeTasks.sorted { t1, t2 in
             let p1 = priorityScore(t1.priority)
             let p2 = priorityScore(t2.priority)
-            if p1 != p2 { return p1 > p2 } // Önce aciliyet
-            return t1.createdAt < t2.createdAt // Aynı aciliyetteyse daha eski olanı ver
+            if p1 != p2 { return p1 > p2 }
+            return t1.createdAt < t2.createdAt
         }.first
     }
     
@@ -254,7 +249,7 @@ private extension TaskListView {
                     Text("Tamamlananlar (\(count))")
                         .font(.system(size: 15, weight: .bold))
                 }
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(.secondary)
             }
             .buttonStyle(.plain)
             
@@ -288,7 +283,6 @@ private extension TaskListView {
         .listRowBackground(Color.clear)
     }
     
-    /// Görev satırını kaydırma (swipe) ve tıklama özellikleri ile sarmalar.
     @ViewBuilder
     func taskRowWrapper(task: TaskModel) -> some View {
         ZStack {
@@ -302,8 +296,6 @@ private extension TaskListView {
         .listRowInsets(EdgeInsets(top: 6, leading: 20, bottom: 6, trailing: 20))
         .listRowSeparator(.hidden)
         .listRowBackground(Color.clear)
-        
-        // ✨ SAĞA KAYDIRMA (GELİŞMİŞ AKSİYONLAR VE RUTİN DESTEĞİ)
         .swipeActions(edge: .leading, allowsFullSwipe: false) {
             if task.routineID != nil {
                 Button {
@@ -336,8 +328,6 @@ private extension TaskListView {
                 .tint(.purple)
             }
         }
-        
-        // ✨ SOLA KAYDIRMA (SİLME)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
                 HapticManager.shared.triggerMediumImpact()
@@ -369,30 +359,32 @@ private extension TaskListView {
                             
                             Text("Zen")
                                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(.secondary)
                         }
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                         .background(
                             Capsule()
-                                .fill(Color.white.opacity(0.04))
-                                .background(.ultraThinMaterial.opacity(0.5))
+                                .fill(Color(uiColor: .tertiarySystemFill))
+                                .background(.ultraThinMaterial)
                         )
-                        .overlay(Capsule().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                        .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
                 
-                filterPill(title: "Tümü", icon: "tray.fill", color: Color(hex: "0df2cc"), isSelected: selectedQuickFilter == .all) {
+                let activeColor = appearance.accentColor
+                
+                filterPill(title: "Tümü", icon: "tray.fill", activeColor: activeColor, isSelected: selectedQuickFilter == .all) {
                     selectedQuickFilter = .all
                 }
                 
-                filterPill(title: "Acil", icon: "flame.fill", color: .orange, isSelected: selectedQuickFilter == .urgent) {
+                filterPill(title: "Acil", icon: "flame.fill", activeColor: .orange, isSelected: selectedQuickFilter == .urgent) {
                     selectedQuickFilter = .urgent
                 }
                 
                 ForEach(Category.allCases) { cat in
-                    filterPill(title: cat.rawValue, icon: cat.icon, color: cat.color, isSelected: selectedQuickFilter == .category(cat)) {
+                    filterPill(title: cat.rawValue, icon: cat.icon, activeColor: cat.color, isSelected: selectedQuickFilter == .category(cat)) {
                         selectedQuickFilter = .category(cat)
                     }
                 }
@@ -401,7 +393,8 @@ private extension TaskListView {
         }
     }
     
-    func filterPill(title: String, icon: String, color: Color, isSelected: Bool, action: @escaping () -> Void) -> some View {
+    // ✨ SENIOR FIX: Pill'ler ZStack ile yeniden kurgulandı (Adaptive UI)
+    func filterPill(title: String, icon: String, activeColor: Color, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: {
             HapticManager.shared.triggerSelection()
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -414,17 +407,23 @@ private extension TaskListView {
                 Text(title)
                     .font(.system(size: 13, weight: .bold, design: .rounded))
             }
-            .foregroundColor(isSelected ? color : .white.opacity(0.6))
+            .foregroundColor(isSelected ? activeColor : .secondary)
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .background(
-                Capsule()
-                    .fill(isSelected ? color.opacity(0.15) : Color.white.opacity(0.04))
-                    .background(.ultraThinMaterial.opacity(isSelected ? 0 : 0.5))
+                ZStack {
+                    if !isSelected {
+                        Capsule()
+                            .fill(.ultraThinMaterial)
+                    }
+                    Capsule()
+                        // Aydınlık ve karanlık moda tam uyumlu sistem dolgusu
+                        .fill(isSelected ? activeColor.opacity(0.15) : Color(uiColor: .tertiarySystemFill))
+                }
             )
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? color.opacity(0.4) : Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(isSelected ? activeColor.opacity(0.4) : Color.primary.opacity(0.1), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
@@ -436,7 +435,7 @@ private extension TaskListView {
             Button(action: onMenuTap) {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(.primary)
             }
             .buttonStyle(.plain)
             
@@ -446,13 +445,13 @@ private extension TaskListView {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(timeBasedGreeting),")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(.secondary)
                         .textCase(.uppercase)
                         .tracking(1)
                     
                     Text(userName)
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary)
                         .lineLimit(1)
                 }
             }
@@ -465,13 +464,14 @@ private extension TaskListView {
             }) {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: "0df2cc"))
+                        .fill(appearance.accentColor)
                         .frame(width: 44, height: 44)
-                        .shadow(color: Color(hex: "0df2cc").opacity(0.4), radius: 10, x: 0, y: 0)
+                        .shadow(color: appearance.accentColor.opacity(0.4), radius: 10, x: 0, y: 0)
                     
+                    // Artı ikonu temaya binsin diye her zaman beyaz kalır
                     Image(systemName: "plus")
                         .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(Color(hex: "10221f"))
+                        .foregroundColor(.white)
                 }
             }
             .buttonStyle(.plain)
@@ -483,22 +483,22 @@ private extension TaskListView {
     var customSearchBar: some View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.white.opacity(0.4))
+                .foregroundColor(.secondary)
                 .font(.system(size: 18))
             
             TextField("Görev, proje ara...", text: $searchText)
-                .foregroundColor(.white)
+                .foregroundColor(.primary)
                 .font(.system(size: 16))
-                .preferredColorScheme(.dark)
                 .submitLabel(.search)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
-        .background(Color.white.opacity(0.05))
+        // Adaptive arkaplan form stili
+        .background(Color(uiColor: .secondarySystemGroupedBackground))
         .cornerRadius(16)
         .overlay(
             RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
         )
         .padding(.horizontal, 20)
     }
@@ -517,16 +517,17 @@ private extension TaskListView {
         .padding(.horizontal, 30)
         .padding(.top, 16)
         .padding(.bottom, 15)
-        .background(Color(hex: "10221f").opacity(0.85))
-        .background(.ultraThinMaterial)
+        // ✨ SENIOR FIX: Sabit siyah yerine Apple'ın buzlu cam tabakası
+        .background(.thickMaterial)
         .overlay(
-            Rectangle().frame(height: 1).foregroundColor(Color.white.opacity(0.05)),
+            Rectangle().frame(height: 1).foregroundColor(Color.primary.opacity(0.05)),
             alignment: .top
         )
     }
     
     func navButton(icon: String, title: String, tab: BottomTab) -> some View {
         let isSelected = selectedTab == tab
+        let activeColor = appearance.accentColor
         
         return Button(action: {
             HapticManager.shared.triggerLightImpact()
@@ -537,12 +538,12 @@ private extension TaskListView {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 24))
-                    .foregroundColor(isSelected ? Color(hex: "0df2cc") : .white.opacity(0.4))
+                    .foregroundColor(isSelected ? activeColor : .secondary)
                     .scaleEffect(isSelected ? 1.1 : 1.0)
                 
                 Text(title)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(isSelected ? Color(hex: "0df2cc") : .white.opacity(0.4))
+                    .foregroundColor(isSelected ? activeColor : .secondary)
             }
             .frame(width: 60)
         }
@@ -573,6 +574,7 @@ private extension TaskListView {
 
 // MARK: - ✨ ZEN ODAK MODU GÖRÜNÜMÜ ✨
 /// Yaver'in gizli silahı. Dönen ruhani ateş çemberleri ile birlikte tek bir göreve odaklanmayı sağlar.
+/// Senior Notu: Zen modu, doğası gereği odaklanmak için her zaman karanlık modda (Immersive Dark) kalmalıdır.
 struct ZenFocusView: View {
     let task: TaskModel
     @ObservedObject var viewModel: TaskViewModel
@@ -585,12 +587,11 @@ struct ZenFocusView: View {
     
     var body: some View {
         ZStack {
-            // Tamamen karanlık, dikkat dağıtmayan arka plan
+            // Zen modu her zaman karanlıktır (Odak için)
             Color(hex: "050505").ignoresSafeArea()
             
-            // ✨ RUHANİ ATEŞ ÇEMBERLERİ (Spiritual Rings)
+            // ✨ RUHANİ ATEŞ ÇEMBERLERİ
             ZStack {
-                // 1. Dış Çember (Saat yönünde döner)
                 Circle()
                     .stroke(
                         AngularGradient(gradient: Gradient(colors: [.orange, .red, .pink, .purple, .orange]), center: .center),
@@ -600,7 +601,6 @@ struct ZenFocusView: View {
                     .blur(radius: 20)
                     .rotationEffect(.degrees(isRotatingOut ? 360 : 0))
                 
-                // 2. İç Çember (Saatin tersi yönünde döner)
                 Circle()
                     .stroke(
                         AngularGradient(gradient: Gradient(colors: [.yellow, .orange, .clear, .yellow]), center: .center),
@@ -610,13 +610,11 @@ struct ZenFocusView: View {
                     .blur(radius: 10)
                     .rotationEffect(.degrees(isRotatingIn ? -360 : 0))
             }
-            // Çemberlere nefes alma efekti
             .scaleEffect(isPulsing ? 1.05 : 0.95)
             .opacity(isPulsing ? 0.9 : 0.6)
             
-            // 🎯 ANA İÇERİK (Görev ve Aksiyonlar)
+            // 🎯 ANA İÇERİK
             VStack(spacing: 40) {
-                // Başlık
                 Text("MUTLAK ODAK")
                     .font(.system(size: 14, weight: .black, design: .monospaced))
                     .foregroundColor(.orange)
@@ -625,7 +623,6 @@ struct ZenFocusView: View {
                 
                 Spacer()
                 
-                // Tek Bir Görev
                 VStack(spacing: 24) {
                     if let category = task.category {
                         Text(category.rawValue.uppercased())
@@ -648,7 +645,6 @@ struct ZenFocusView: View {
                 
                 Spacer()
                 
-                // Aksiyon Butonları
                 VStack(spacing: 25) {
                     Button(action: {
                         HapticManager.shared.triggerHeavyImpact()
@@ -684,16 +680,9 @@ struct ZenFocusView: View {
             }
         }
         .onAppear {
-            // Animasyon Döngüleri
-            withAnimation(.linear(duration: 8).repeatForever(autoreverses: false)) {
-                isRotatingOut = true
-            }
-            withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) {
-                isRotatingIn = true
-            }
-            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) {
-                isPulsing = true
-            }
+            withAnimation(.linear(duration: 8).repeatForever(autoreverses: false)) { isRotatingOut = true }
+            withAnimation(.linear(duration: 6).repeatForever(autoreverses: false)) { isRotatingIn = true }
+            withAnimation(.easeInOut(duration: 2).repeatForever(autoreverses: true)) { isPulsing = true }
         }
     }
 }

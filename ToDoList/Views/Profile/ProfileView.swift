@@ -2,16 +2,12 @@ import SwiftUI
 import PhotosUI
 
 /// Kullanıcının üretkenlik verilerini ve başarılarını gösteren ana profil ekranı.
-/// Senior Notu: Karmaşık istatistikler StatisticsView'a devredilmiş,
-/// bu ekran kullanıcının 'Oyuncu Kimliği' (Gamification) olarak sadeleştirilmiştir.
+/// Senior Notu: Profil ve isim değiştirme (Edit) işlemleri SettingsView'a taşınarak
+/// UI çakışmaları tamamen önlenmiş ve bu ekran bir "Vitrin" haline getirilmiştir.
 struct ProfileView: View {
     // MARK: - Properties
     @StateObject private var userVM: UserViewModel
-    
-    // ✨ SENIOR FIX 1: @EnvironmentObject yerine @ObservedObject kullanıyoruz.
-    // Çünkü bu View'ı oluştururken taskVM'yi dışarıdan parametre olarak alıyoruz.
     @ObservedObject var taskVM: TaskViewModel
-    
     @EnvironmentObject var appearance: AppearanceManager
     
     // MARK: - Tıklama ve Yönlendirme (Sheets)
@@ -19,25 +15,11 @@ struct ProfileView: View {
     @State private var showingSettings = false
     @State private var showingAllAchievements = false
     
-    // MARK: - İsim Değiştirme (AppStorage)
+    // Yalnızca okuma (Okunabilir) amaçlı isim
     @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
-    @State private var showingNameEditAlert = false
-    @State private var tempUserName = ""
-    
-    // MARK: - Avatar / Profil Fotoğrafı İşlemleri
-    @AppStorage("userAvatarID") private var userAvatarID: String = ""
-    @AppStorage("userAvatarEmoji") private var userAvatarEmoji: String = ""
-    
-    @State private var showingAvatarDialog = false
-    @State private var showCameraForAvatar = false
-    @State private var showGalleryForAvatar = false // Çakışmayı önleyen güvenli galeri tetikleyicisi
-    @State private var showingEmojiAlert = false
-    @State private var tempEmoji = ""
-    @State private var selectedAvatarItem: PhotosPickerItem? = nil
     
     // MARK: - Initialization
     init(taskVM: TaskViewModel) {
-        // ✨ SENIOR FIX 2: taskVM'i doğru bir şekilde atıyoruz.
         self.taskVM = taskVM
         _userVM = StateObject(wrappedValue: UserViewModel(taskViewModel: taskVM))
     }
@@ -98,51 +80,6 @@ struct ProfileView: View {
                 onMenuTap: { showingSettings = false }
             )
         }
-        
-        .confirmationDialog("Profil Fotoğrafı", isPresented: $showingAvatarDialog, titleVisibility: .visible) {
-            Button("Kameradan Çek") { triggerCameraSafe() }
-            Button("Galeriden Seç") { showGalleryForAvatar = true }
-            Button("Emoji / İkon Seç") {
-                tempEmoji = userAvatarEmoji
-                showingEmojiAlert = true
-            }
-            if !userAvatarID.isEmpty || !userAvatarEmoji.isEmpty {
-                Button("Avatarı Sıfırla", role: .destructive) { removeAvatar() }
-            }
-            Button("İptal", role: .cancel) { }
-        }
-        
-        .fullScreenCover(isPresented: $showCameraForAvatar) {
-            CameraPicker { image in saveNewAvatar(image) }.ignoresSafeArea()
-        }
-        
-        .photosPicker(isPresented: $showGalleryForAvatar, selection: $selectedAvatarItem, matching: .images)
-        .onChange(of: selectedAvatarItem) { _, newItem in
-            Task {
-                if let data = try? await newItem?.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    await MainActor.run { saveNewAvatar(image) }
-                }
-            }
-        }
-        
-        .alert("Emoji Seç", isPresented: $showingEmojiAlert) {
-            TextField("Örn: 🚀, 🤖, 🦁", text: $tempEmoji)
-            Button("İptal", role: .cancel) { }
-            Button("Kaydet") { saveEmoji() }
-        } message: { Text("Klavyeden bir emoji seç. Fotoğrafın yerine bu görünecektir.") }
-        
-        .alert("İsmini Değiştir", isPresented: $showingNameEditAlert) {
-            TextField("Yeni İsim/Nickname", text: $tempUserName)
-            Button("İptal", role: .cancel) { }
-            Button("Kaydet") {
-                let trimmed = tempUserName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty {
-                    userName = trimmed
-                    HapticManager.shared.triggerSuccess()
-                }
-            }
-        } message: { Text("Profilinde ve asistanında görünmesini istediğin ismi gir.") }
     }
 }
 
@@ -153,37 +90,21 @@ private extension ProfileView {
     var profileHeader: some View {
         HStack(spacing: 15) {
             
-            Button(action: {
-                HapticManager.shared.triggerLightImpact()
-                showingAvatarDialog = true
-            }) {
-                AvatarView(size: 42)
-            }
-            .buttonStyle(.plain)
+            // ✨ SENIOR FIX: Buradaki Button sarmalayıcı kaldırıldı!
+            // Artık AvatarView'in kendi içindeki "Tam Ekran Önizleme" tıklaması sorunsuz çalışacak.
+            AvatarView(size: 42)
             
             VStack(alignment: .leading, spacing: 2) {
-                Button(action: {
-                    tempUserName = userName
-                    showingNameEditAlert = true
-                    HapticManager.shared.triggerLightImpact()
-                }) {
-                    HStack(spacing: 4) {
-                        Text(userName)
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .lineLimit(1)
-                        
-                        Image(systemName: "pencil")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(.white.opacity(0.5))
-                    }
-                }
-                .buttonStyle(.plain)
+                // İsmin etrafındaki Button da kaldırıldı.
+                Text(userName)
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
                 
                 Text("SELF-OPTIMIZATION MODE")
                     .font(.system(size: 8, weight: .black))
                     .tracking(1.5)
-                    .foregroundColor(Color(hex: "0df2cc").opacity(0.8))
+                    .foregroundColor(appearance.accentColor.opacity(0.8))
             }
             
             Spacer()
@@ -194,12 +115,12 @@ private extension ProfileView {
             }) {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 18))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(.primary.opacity(0.7))
                     .padding(10)
-                    .background(Color.white.opacity(0.05))
+                    .background(Color.primary.opacity(0.05))
                     .background(.ultraThinMaterial)
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.1), lineWidth: 1))
+                    .overlay(Circle().stroke(Color.primary.opacity(0.1), lineWidth: 1))
             }
         }
         .padding(.horizontal, 20)
@@ -207,8 +128,6 @@ private extension ProfileView {
     
     // MARK: Rütbe ve XP Kartı (Oyunlaştırma Merkezi)
     var rankCardSection: some View {
-        // ✨ SENIOR FIX 3: Rütbe objesini güvenli bir şekilde direkt XPService'den çekiyoruz.
-        // Böylece TaskViewModel'deki yapısal değişiklikler bu sayfayı asla bozmaz.
         let currentRank = XPService.shared.getCurrentRank(for: taskVM.userXP)
         
         return HStack(spacing: 16) {
@@ -230,17 +149,17 @@ private extension ProfileView {
             VStack(alignment: .leading, spacing: 4) {
                 Text("MEVCUT RÜTBE")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(currentRank.color.opacity(0.8))
+                    .foregroundColor(currentRank.color.opacity(0.8)) // Rütbenin kendi rengi
                 
                 Text(currentRank.name)
                     .font(.system(size: 20, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary) // ✨ Adaptive
                     .lineLimit(1)
                     .minimumScaleFactor(0.5)
                 
                 Text("Sıradaki: \(getNextRankName(currentRank: currentRank))")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.secondary) // ✨ Adaptive
             }
             
             Spacer()
@@ -248,30 +167,30 @@ private extension ProfileView {
             VStack(alignment: .trailing, spacing: 4) {
                 Text("XP İLERLEMESİ")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(.secondary) // ✨ Adaptive
                 
                 if let nextThreshold = currentRank.nextThreshold {
                     HStack(alignment: .lastTextBaseline, spacing: 2) {
                         Text("\(taskVM.userXP)")
                             .font(.system(size: 18, weight: .black, design: .rounded))
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary) // ✨ Adaptive
                         Text("/ \(nextThreshold)")
                             .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundColor(.white.opacity(0.5))
+                            .foregroundColor(.secondary) // ✨ Adaptive
                     }
                 } else {
                     // Maksimum seviyeye ulaştıysa sadece Max XP görünür
                     Text("MAX")
                         .font(.system(size: 18, weight: .black, design: .rounded))
-                        .foregroundColor(.white)
+                        .foregroundColor(.primary) // ✨ Adaptive
                 }
             }
         }
         .padding(18)
-        .background(Color.white.opacity(0.03).background(.ultraThinMaterial))
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(24)
-        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.05), lineWidth: 1))
-        .shadow(color: Color.black.opacity(0.1), radius: 10, x: 0, y: 5)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+        .shadow(color: Color.black.opacity(0.05), radius: 10, x: 0, y: 5)
         .padding(.horizontal, 20)
     }
     
@@ -284,45 +203,5 @@ private extension ProfileView {
             return allRanks[currentIndex + 1].name
         }
         return "Zirvedesin!"
-    }
-    
-    // MARK: - Avatar Actions
-    
-    func triggerCameraSafe() {
-        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            showCameraForAvatar = true
-        }
-    }
-    
-    func saveNewAvatar(_ image: UIImage) {
-        if !userAvatarID.isEmpty {
-            MediaManager.shared.deleteFile(id: userAvatarID, fileExtension: "jpg")
-        }
-        if let newID = MediaManager.shared.saveImage(image) {
-            userAvatarID = newID
-            userAvatarEmoji = ""
-            HapticManager.shared.triggerSuccess()
-        }
-    }
-    
-    func saveEmoji() {
-        if let firstChar = tempEmoji.first {
-            userAvatarEmoji = String(firstChar)
-            if !userAvatarID.isEmpty {
-                MediaManager.shared.deleteFile(id: userAvatarID, fileExtension: "jpg")
-                userAvatarID = ""
-            }
-            HapticManager.shared.triggerSuccess()
-        }
-    }
-    
-    func removeAvatar() {
-        if !userAvatarID.isEmpty {
-            MediaManager.shared.deleteFile(id: userAvatarID, fileExtension: "jpg")
-            userAvatarID = ""
-        }
-        userAvatarEmoji = ""
-        HapticManager.shared.triggerMediumImpact()
     }
 }
