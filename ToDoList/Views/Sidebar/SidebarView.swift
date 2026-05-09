@@ -1,9 +1,8 @@
 import SwiftUI
 
 /// Yan menü navigasyonunu yöneten ana orkestratör bileşen.
-/// Senior Notu: Bu View, iş mantığını 'Components' altındaki parçalara dağıtarak
-/// temiz ve sürdürülebilir bir yapı sunar. Sabit beyaz renkler kaldırılarak
-/// Adaptive UI (Aydınlık/Karanlık mod) uyumu tam sağlanmıştır.
+/// Senior Notu: Menüye 'Unified Frosted Glass' (Bütünsel Buzlu Cam) paneli giydirildi.
+/// Tüm statik renkler kaldırılarak Adaptive UI (Aydınlık/Karanlık mod) uyumu tam sağlanmıştır.
 struct SidebarView: View {
     // MARK: - Properties
     @ObservedObject var taskVM: TaskViewModel
@@ -14,7 +13,7 @@ struct SidebarView: View {
     @Binding var selectedScreen: ContentView.ScreenType
     @Binding var selectedCategory: Category?
     
-    // ✨ YENİ: Odak Sayacını (Pomodoro) Açmak İçin Tetikleyici State
+    // Odak Sayacını (Pomodoro) Açmak İçin Tetikleyici State
     @State private var showingFocusTimer = false
     
     var body: some View {
@@ -66,7 +65,7 @@ struct SidebarView: View {
                     
                     dividerLine
                     
-                    // ✨ ARAÇLAR (TOOLS) BÖLÜMÜ
+                    // ARAÇLAR (TOOLS) BÖLÜMÜ
                     Group {
                         SidebarMenuItemView(
                             title: "Rutinlerim",
@@ -116,8 +115,21 @@ struct SidebarView: View {
         }
         .frame(maxWidth: 250)
         .frame(maxHeight: .infinity)
-        // ✨ SENIOR FIX: Arka plan ContentView'daki sistem rengini (System Background) gösterir
-        .background(Color.clear)
+        // ✨ SENIOR FIX: BÜTÜNSEL CAM PANELİ (Unified Frosted Glass)
+        // Ana ekranla ayrışan, dipten uca tek parça bir iOS paneli.
+        .background(
+            Color.primary.opacity(0.02)
+                .background(.ultraThinMaterial)
+                // Sağ kenara, ana ekranla arasında zarif bir sınır çizgisi çizer
+                .overlay(
+                    Rectangle()
+                        .frame(width: 1)
+                        .foregroundColor(Color.primary.opacity(0.05)),
+                    alignment: .trailing
+                )
+                // ✨ SENIOR FIX: Kilit nokta! Arka plan camının çentik ve Home Bar boşluklarını tam doldurmasını sağlar.
+                .ignoresSafeArea()
+        )
         .offset(x: isMenuOpen ? 0 : -250)
         .frame(maxWidth: .infinity, alignment: .leading)
         .fullScreenCover(isPresented: $showingFocusTimer) {
@@ -131,16 +143,14 @@ private extension SidebarView {
     
     var dividerLine: some View {
         Divider()
-            // ✨ SENIOR FIX: Beyaz yerine Adaptive şeffaf çizgi
             .background(Color.primary.opacity(0.1))
             .padding(.horizontal, 20)
             .padding(.vertical, 5)
     }
     
     var footerInfo: some View {
-        Text("Yaver v2.5.0 • Senior Edition")
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            // ✨ SENIOR FIX: Beyaz yerine Adaptive ikincil renk
+        Text("YAVER İLE HAYATI PLANLA")
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
             .foregroundColor(.secondary)
             .padding(24)
     }

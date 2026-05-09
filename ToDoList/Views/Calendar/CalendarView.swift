@@ -159,14 +159,14 @@ private extension CalendarView {
         let activeCount = tasks.filter { !$0.isCompleted }.count
         
         if Calendar.current.isDateInToday(viewModel.selectedDate) {
-            if activeCount == 0 { return "AI: Bugün her şey tamam. Harikasın!" }
-            if activeCount > 4 { return "AI: Biraz yoğun bir gün, odaklanalım." }
-            return "AI: Günü bitirmek için \(activeCount) görev kaldı."
+            if activeCount == 0 { return "YAVER: Bugün her şey tamam. Harikasın!" }
+            if activeCount > 4 { return "YAVER: Biraz yoğun bir gün, odaklanalım." }
+            return "YAVER: Günü bitirmek için \(activeCount) görev kaldı."
         } else if viewModel.selectedDate > Date() {
-            if activeCount > 0 { return "AI: Geleceği planlamak harika." }
-            return "AI: Bu gün için henüz plan yok."
+            if activeCount > 0 { return "YAVER: Geleceği planlamak harika." }
+            return "YAVER: Bu gün için henüz plan yok." 
         } else {
-            return "AI: Geçmişi değiştirilemez ama ders alınabilir."
+            return "YAVER: Geçmiş değiştirilemez ama ders alınabilir."
         }
     }
 }

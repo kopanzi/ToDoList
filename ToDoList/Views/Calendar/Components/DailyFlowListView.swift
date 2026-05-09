@@ -31,7 +31,7 @@ struct DailyFlowListView: View {
                             .foregroundColor(.primary.opacity(0.2))
                             .padding(.top, 40)
                         
-                        Text("Bu gün için planlanmış bir görev yok.")
+                        Text("Bugün için planlanmış bir görev yok.")
                             .font(.system(size: 14, weight: .medium))
                             // ✨ SENIOR FIX: .white yerine .secondary kullanıldı
                             .foregroundColor(.secondary)

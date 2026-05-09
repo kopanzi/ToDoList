@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Sidebar'ın en üstünde yer alan, kullanıcı profilini, rütbesini ve XP bilgisini gösteren premium bileşen.
-/// Senior Notu: Statik beyaz/siyah ve neon renkler kaldırılarak Tema Motoruna (AppearanceManager)
-/// ve Apple'ın Adaptive (Aydınlık/Karanlık mod) tasarım standartlarına geçirilmiştir.
+/// Senior Notu: Lokal "Yama" cam efekti temizlenerek, SidebarView'daki bütünsel cam paneline
+/// (Unified Frosted Glass) tam uyum sağlaması için şeffaflaştırılmıştır.
 struct SidebarHeaderView: View {
     // MARK: - Properties
     let rankName: String
@@ -10,7 +10,7 @@ struct SidebarHeaderView: View {
     let xp: Int
     let progress: Double // 0.0 - 1.0 arası seviye ilerlemesi
     
-    // ✨ SENIOR FIX: Uygulamanın aktif temasını dinler
+    // Uygulamanın aktif temasını dinler
     @EnvironmentObject var appearance: AppearanceManager
     
     // Kullanıcı adını anlık olarak cihaz hafızasından okuyoruz
@@ -28,7 +28,7 @@ struct SidebarHeaderView: View {
                     // Kullanıcı İsmi
                     Text(userName)
                         .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.primary) // ✨ Adaptive
+                        .foregroundColor(.primary) // Adaptive
                         .lineLimit(1)
                     
                     // Şık Rütbe Rozeti (Badge)
@@ -40,7 +40,6 @@ struct SidebarHeaderView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    // ✨ SENIOR FIX: Aydınlık ve karanlık moda uyumlu rozet arka planı
                     .background(Color.primary.opacity(0.05))
                     .foregroundColor(.secondary)
                     .clipShape(Capsule())
@@ -56,28 +55,25 @@ struct SidebarHeaderView: View {
                         Text("\(xp) XP")
                     }
                     .font(.system(size: 12, weight: .bold))
-                    // ✨ SENIOR FIX: Sabit renk yerine kullanıcının seçtiği Tema Rengi
                     .foregroundColor(appearance.accentColor)
                     
                     Spacer()
                     
                     Text("%\(Int(progress * 100))")
                         .font(.system(size: 10, weight: .black))
-                        .foregroundColor(.secondary) // ✨ Adaptive
+                        .foregroundColor(.secondary) // Adaptive
                 }
                 
                 // İlerleme Barı
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            // ✨ SENIOR FIX: Zemin rengi Adaptive yapıldı
                             .fill(Color.primary.opacity(0.1))
                             .frame(height: 6)
                         
                         Capsule()
                             .fill(
                                 LinearGradient(
-                                    // ✨ SENIOR FIX: Dolum efekti Tema Renginden beslenir
                                     colors: [appearance.accentColor, appearance.accentColor.opacity(0.6)],
                                     startPoint: .leading,
                                     endPoint: .trailing
@@ -93,18 +89,8 @@ struct SidebarHeaderView: View {
         .padding(.top, 60) // Çentik (Notch) payı
         .padding(.horizontal, 24)
         .padding(.bottom, 25)
-        // ✨ YENİ: Adaptive Cam Efekti
-        .background(
-            Color.primary.opacity(0.02)
-                .background(.ultraThinMaterial.opacity(0.6))
-                // Alt kısımdan yumuşakça eriyerek kaybolan (fade out) ince bir ayraç çizgisi
-                .overlay(
-                    Rectangle()
-                        .frame(height: 1)
-                        .foregroundColor(Color.primary.opacity(0.05)),
-                    alignment: .bottom
-                )
-        )
+        // ✨ SENIOR FIX: Lokal `.background(ultraThinMaterial)` buradan tamamen SİLİNDİ!
+        // Artık zemin %100 şeffaf, SidebarView'daki dev panelle birleşecek.
     }
 }
 
@@ -124,6 +110,5 @@ struct SidebarHeaderView: View {
             Spacer()
         }
     }
-    // ✨ SENIOR FIX: Preview'ın çökmemesi için
     .environmentObject(AppearanceManager.shared)
 }
