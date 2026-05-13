@@ -164,7 +164,7 @@ private extension CalendarView {
             return "YAVER: Günü bitirmek için \(activeCount) görev kaldı."
         } else if viewModel.selectedDate > Date() {
             if activeCount > 0 { return "YAVER: Geleceği planlamak harika." }
-            return "YAVER: Bu gün için henüz plan yok." 
+            return "YAVER: Bu gün için henüz plan yok."
         } else {
             return "YAVER: Geçmiş değiştirilemez ama ders alınabilir."
         }

@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import FirebaseAuth
 
 /// Uygulamanın kişiselleştirme ve ayarlar merkezi.
 /// Senior Notu: Profil düzenleme (Kamera, Galeri, Emoji, İsim değiştirme) işlemleri
@@ -9,6 +10,7 @@ struct SettingsView: View {
     @ObservedObject var viewModel: SettingsViewModel
     @ObservedObject var taskVM: TaskViewModel
     @EnvironmentObject var appearance: AppearanceManager
+    @StateObject private var authManager = AuthManager.shared
     
     // Sidebar'ı açmak için dışarıdan gelen tetikleyici
     var onMenuTap: () -> Void
@@ -28,9 +30,85 @@ struct SettingsView: View {
     @State private var tempEmoji = ""
     @State private var selectedAvatarItem: PhotosPickerItem? = nil
     
+    // ✨ YENİ: Giriş (Login) ekranı tetikleyicisi
+    @State private var showingLoginSheet = false
+    
     var body: some View {
         NavigationStack {
             Form {
+                // ✨ 0. BULUT YEDEKLEME VE HESAP
+                Section {
+                    if let user = authManager.userSession {
+                        // 🟢 GİRİŞ YAPILMIŞ DURUM (LOGGED IN)
+                        HStack(spacing: 15) {
+                            Image(systemName: "checkmark.icloud.fill")
+                                .font(.system(size: 30))
+                                .foregroundColor(.green) // Giriş başarılı rengi
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(user.displayName ?? "Bulut Kullanıcısı")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                Text(user.email ?? "Email gizli")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                            Spacer()
+                            
+                            // Çıkış Yap Butonu
+                            Button(action: {
+                                HapticManager.shared.triggerMediumImpact()
+                                do {
+                                    try authManager.signOut()
+                                } catch {
+                                    print("Çıkış hatası: \(error.localizedDescription)")
+                                }
+                            }) {
+                                Text("Çıkış Yap")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.red)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.red.opacity(0.1))
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.vertical, 4)
+                        
+                    } else {
+                        // 🔴 GİRİŞ YAPILMAMIŞ DURUM (GUEST)
+                        Button(action: {
+                            HapticManager.shared.triggerLightImpact()
+                            showingLoginSheet = true
+                        }) {
+                            HStack(spacing: 15) {
+                                Image(systemName: "person.crop.circle.badge.icloud")
+                                    .font(.system(size: 30))
+                                    .foregroundColor(appearance.accentColor)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Verilerini Buluta Yedekle")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    Text("Apple veya Google ile giriş yap")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            .contentShape(Rectangle())
+                            .padding(.vertical, 4)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .listRowBackground(Color.primary.opacity(0.03))
+                
                 // ✨ 1. PROFİL AYARLARI (ProfileView'dan Taşındı)
                 Section {
                     // Profil Fotoğrafını Değiştir Butonu
@@ -180,6 +258,10 @@ struct SettingsView: View {
                 }
             } message: {
                 Text("Profilinde ve asistanında görünmesini istediğin ismi gir.")
+            }
+            // ✨ YENİ: Login (Auth) Ekranı
+            .sheet(isPresented: $showingLoginSheet) {
+                LoginView()
             }
         }
     }

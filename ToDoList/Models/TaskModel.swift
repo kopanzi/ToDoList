@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 
+
 // MARK: - Enums
 enum Category: String, CaseIterable, Codable, Identifiable {
     case business = "İş"
@@ -56,7 +57,10 @@ enum Priority: String, CaseIterable, Codable {
 }
 
 // MARK: - Model
-struct TaskModel: AppEntity, Equatable {
+// ✨ SENIOR FIX: 'Codable' ve 'Identifiable' eklendi!
+// Codable: Bu modelin Firebase'e JSON formatında ışınlanmasını sağlar.
+struct TaskModel: AppEntity, Equatable, Codable, Identifiable {
+    // Senin yerel id sistemini koruduk ki UI tarafları patlamasın!
     var id: String = UUID().uuidString
     var title: String
     var isCompleted: Bool = false
