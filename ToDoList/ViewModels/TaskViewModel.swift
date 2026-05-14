@@ -2,10 +2,11 @@ import Foundation
 import SwiftUI
 import WidgetKit
 import Combine
+import FirebaseAuth // ✨ SENIOR FIX: Otomatik giriş tespiti için eklendi
 
 /// Uygulamanın görev yönetimini, oyunlaştırma (XP) sistemini ve görsel tetikleyicilerini yöneten ana ViewModel.
 /// Senior Notu: @MainActor ile işaretlenmiştir, tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
-/// Veri kayıplarını önlemek için AppGroup ve UserDefaults işlemleri 'do-catch' ile koruma altına alınmıştır.
+/// Veri kayıplarını önlemek için AppGroup, UserDefaults ve FIRESTORE işlemleri koruma altına alınmıştır.
 @MainActor
 final class TaskViewModel: ObservableObject {
     
@@ -14,7 +15,7 @@ final class TaskViewModel: ObservableObject {
     /// Takvimden görev eklerken kullanılan geçici tarih tutucu
     @Published var defaultAdditionDate: Date? = nil
     
-    /// Tüm görevlerin listesi. Değiştiğinde otomatik kaydeder ve UI temasını günceller.
+    /// Tüm görevlerin listesi. Değiştiğinde otomatik yerel hafızaya ve Widget'a kaydeder.
     @Published var tasks: [TaskModel] = [] {
         didSet {
             saveAndSync()
@@ -85,6 +86,68 @@ final class TaskViewModel: ObservableObject {
         AppearanceManager.shared.updateAppearance(with: tasks)
         loadArchivedTasks()
         validateLifetimeCounters()
+        
+        // ✨ SENIOR FIX: Kullanıcı giriş yaptığını anında algılayıp bulutla eşleşme başlatan dinleyici (Sarı Uyarı Giderildi)
+        _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            if user != nil {
+                self?.syncWithCloud()
+            }
+        }
+    }
+    
+    // MARK: - CLOUD SYNC (BULUT MOTORU) ✨
+    
+    /// Giriş yapıldığında yerel görevler ile buluttaki görevleri akıllıca birleştirir.
+    private func syncWithCloud() {
+        Task {
+            do {
+                let cloudTasks = try await FirestoreManager.shared.fetchTasks()
+                
+                if cloudTasks.isEmpty && !self.tasks.isEmpty {
+                    // İlk Buluşma: Bulut boş ama kullanıcının yerel görevleri var. Tümünü buluta yolla.
+                    await FirestoreManager.shared.syncLocalTasksToCloud(tasks: self.tasks)
+                } else if !cloudTasks.isEmpty {
+                    // Akıllı Birleştirme (Smart Merge): Buluttaki verilerle telefondakileri birleştir
+                    var mergedTasks = self.tasks
+                    for cloudTask in cloudTasks {
+                        if let index = mergedTasks.firstIndex(where: { $0.id == cloudTask.id }) {
+                            // Görev zaten varsa buluttakini (daha güncel olanı) ez
+                            mergedTasks[index] = cloudTask
+                        } else {
+                            // Bulutta var, telefonda yoksa listeye ekle
+                            mergedTasks.append(cloudTask)
+                        }
+                    }
+                    self.tasks = mergedTasks
+                    
+                    // Telefonun yerel hafızasından gelip bulutta olmayanlar varsa, tam eşzamanlama yap
+                    await FirestoreManager.shared.syncLocalTasksToCloud(tasks: mergedTasks)
+                }
+            } catch {
+                print("🛑 Bulut Senkronizasyon Hatası: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func saveTaskToCloud(_ task: TaskModel) {
+            guard Auth.auth().currentUser != nil else {
+                print("🛑 HATA: Kullanıcı giriş yapmamış, görev buluta gidemez!")
+                return
+            }
+            Task {
+                do {
+                    try await FirestoreManager.shared.saveTask(task)
+                    print("✅ GÖREV BAŞARIYLA BULUTA GİTTİ: \(task.title)")
+                } catch {
+                    print("🛑 GÖREV BULUT HATASI: \(error.localizedDescription)")
+                    print("🛑 DETAYLI HATA: \(error)")
+                }
+            }
+        }
+    
+    private func deleteTaskFromCloud(id: String) {
+        guard Auth.auth().currentUser != nil else { return }
+        Task { try? await FirestoreManager.shared.deleteTask(id: id) }
     }
     
     // MARK: - Veri Yükleme & Doğrulama (Self-Healing)
@@ -112,7 +175,6 @@ final class TaskViewModel: ObservableObject {
         }
     }
     
-    /// Veri bozulmalarına karşı sayaçları onaran matematiksel zırh
     private func validateLifetimeCounters() {
         let absoluteTotalTasks = tasks.count + archivedTasks.count
         let absoluteCompletedTasks = tasks.filter { $0.isCompleted }.count + archivedTasks.count
@@ -120,11 +182,9 @@ final class TaskViewModel: ObservableObject {
         if lifetimeAddedTasks < absoluteTotalTasks {
             lifetimeAddedTasks = absoluteTotalTasks
         }
-        
         if lifetimeCompletedTasks < absoluteCompletedTasks {
             lifetimeCompletedTasks = absoluteCompletedTasks
         }
-        
         if lifetimeCompletedTasks > lifetimeAddedTasks {
             lifetimeAddedTasks = lifetimeCompletedTasks
         }
@@ -140,34 +200,23 @@ final class TaskViewModel: ObservableObject {
     func getFilteredTasks(category: Category?, showPrivate: Bool, searchText: String) -> [TaskModel] {
         var result = tasks
         
-        // 1. Gizlilik Filtresi
-        result = result.filter { $0.isPrivate == showPrivate }
+        if result.contains(where: { $0.isPrivate != showPrivate }) {
+            result = result.filter { $0.isPrivate == showPrivate }
+        }
         
-        // 2. Kategori Filtresi
         if !showPrivate, let category = category {
             result = result.filter { $0.category == category }
         }
         
-        // 3. Arama Filtresi
         if !searchText.isEmpty {
             result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
         }
         
-        // 4. Akıllı Sıralama (Smart Sorting)
         return result.sorted {
-            // Kural 1: Tamamlanmamışlar üstte kalır
-            if $0.isCompleted != $1.isCompleted {
-                return !$0.isCompleted
-            }
-            
-            // Kural 2: Akıllı Yığılma (Stacking) Önceliği - Çok Gecikenler Üste!
+            if $0.isCompleted != $1.isCompleted { return !$0.isCompleted }
             let delay0 = $0.delayedCount ?? 0
             let delay1 = $1.delayedCount ?? 0
-            if delay0 != delay1 && !$0.isCompleted {
-                return delay0 > delay1
-            }
-            
-            // Kural 3: En son eklenen en üstte görünür
+            if delay0 != delay1 && !$0.isCompleted { return delay0 > delay1 }
             return $0.createdAt > $1.createdAt
         }
     }
@@ -188,6 +237,9 @@ final class TaskViewModel: ObservableObject {
             tasks.append(newTask)
         }
         
+        // ✨ Buluta Kaydet
+        saveTaskToCloud(newTask)
+        
         if !images.isEmpty { addImages(to: newTask, images: images) }
         
         addXP(amount: XPRewards.newTask)
@@ -196,7 +248,6 @@ final class TaskViewModel: ObservableObject {
         if isReminderEnabled {
             NotificationManager.shared.scheduleNotification(for: newTask)
         }
-        
         hapticManager.triggerLightImpact()
     }
     
@@ -206,10 +257,12 @@ final class TaskViewModel: ObservableObject {
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
             
-            // Eğer görev tamamlanmışsa grafikleri korumak için arşive kopyala
+            // ✨ Buluttan Sil
+            deleteTaskFromCloud(id: task.id)
+            
             if task.isCompleted {
                 var archivedTask = task
-                archivedTask.note = "" // Ağır verileri temizle
+                archivedTask.note = ""
                 archivedTask.imageIDs = []
                 archivedTask.audioID = nil
                 archivedTasks.append(archivedTask)
@@ -230,6 +283,9 @@ final class TaskViewModel: ObservableObject {
             TrashManager.shared.moveToTrash(task: task)
             NotificationManager.shared.cancelNotification(for: task.id)
             
+            // ✨ Buluttan Sil
+            deleteTaskFromCloud(id: task.id)
+            
             var archivedTask = task
             archivedTask.note = ""
             archivedTask.imageIDs = []
@@ -247,8 +303,10 @@ final class TaskViewModel: ObservableObject {
         withAnimation(.spring()) {
             tasks.append(task)
         }
-        // Çöpten geri yüklendiği için arşivden çıkar (İstatistiklerde çift sayılmasın)
         archivedTasks.removeAll { $0.id == task.id }
+        
+        // ✨ Çöpten çıkardığımız için buluta tekrar yükle
+        saveTaskToCloud(task)
         
         saveAndSync()
         hapticManager.triggerSuccess()
@@ -259,24 +317,22 @@ final class TaskViewModel: ObservableObject {
         
         tasks[index].isCompleted.toggle()
         let isDone = tasks[index].isCompleted
-        
-        // Görev tamamlandığında saati kaydet
         tasks[index].completedAt = isDone ? Date() : nil
+        
+        // ✨ Değişikliği Buluta Yolla
+        saveTaskToCloud(tasks[index])
         
         if isDone {
             NotificationManager.shared.cancelNotification(for: task.id)
-            // Rutin serisini artır
             if let rID = task.routineID {
                 RoutineManager.shared.incrementStreak(for: rID)
             }
         }
         
-        // XP Hesaplama ve Geri Dönüş Bonusu
         var xpChange = xpService.calculateXP(for: tasks[index], isCompleted: isDone)
         if isDone, let delayCount = tasks[index].delayedCount, delayCount > 1 {
             xpChange += (delayCount * 10)
         }
-        
         addXP(amount: xpChange)
         
         if isDone {
@@ -305,6 +361,8 @@ final class TaskViewModel: ObservableObject {
     func updateTaskNote(task: TaskModel, newNote: String) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].note = newNote
+            // ✨ Değişikliği Buluta Yolla
+            saveTaskToCloud(tasks[index])
         }
     }
 
@@ -312,15 +370,15 @@ final class TaskViewModel: ObservableObject {
     
     func postponeTask(task: TaskModel) {
         guard let index = tasks.firstIndex(where: { $0.id == task.id }) else { return }
-        
         NotificationManager.shared.cancelNotification(for: task.id)
         
         if let newDate = Calendar.current.date(byAdding: .day, value: 1, to: tasks[index].createdAt) {
             withAnimation(.spring()) {
                 tasks[index].createdAt = newDate
-                // Erteleme yükünü artır
                 tasks[index].delayedCount = (tasks[index].delayedCount ?? 0) + 1
             }
+            // ✨ Değişikliği Buluta Yolla
+            saveTaskToCloud(tasks[index])
             
             if !tasks[index].isCompleted {
                 NotificationManager.shared.scheduleNotification(for: tasks[index])
@@ -334,6 +392,8 @@ final class TaskViewModel: ObservableObject {
             withAnimation(.spring()) {
                 tasks[index].priority = .urgent
             }
+            // ✨ Değişikliği Buluta Yolla
+            saveTaskToCloud(tasks[index])
             hapticManager.triggerSuccess()
         }
     }
@@ -395,6 +455,8 @@ final class TaskViewModel: ObservableObject {
                 tasks[index].imageIDs.append(id)
             }
         }
+        // ✨ Değişikliği Buluta Yolla
+        saveTaskToCloud(tasks[index])
         hapticManager.triggerLightImpact()
     }
     
@@ -420,7 +482,6 @@ final class TaskViewModel: ObservableObject {
     // MARK: - Widget Entegrasyonu
     
     private func reloadWidgets() {
-        // AppGroup Data Sharing (Widget'ların ana uygulamadan veri çekebilmesi için)
         if let defaults = UserDefaults(suiteName: "group.com.kopanzi.yaver") {
             do {
                 let encodedTasks = try JSONEncoder().encode(tasks)

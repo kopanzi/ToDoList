@@ -25,13 +25,18 @@ struct RoutineModel: Identifiable, Codable, Equatable {
     var nextTriggerDate: Date
     
     // MARK: - Oyunlaştırma (Gamification)
-    var streakCount: Int             // 🔥 Alev serisi
-    var freezeCount: Int             // 🧊 Seri Dondurucu sayısı (YENİ)
+    var streakCount: Int
+    var freezeCount: Int
     var lastCompletedDate: Date?
     
     // MARK: - Durum (State)
     var isActive: Bool
     let createdAt: Date
+    
+    // 🛡️ SENIOR FIX: FIRESTORE GÜVENLİK DUVARI (CodingKeys)
+    enum CodingKeys: String, CodingKey {
+        case id, title, priority, category, note, startDate, interval, frequency, nextTriggerDate, streakCount, freezeCount, lastCompletedDate, isActive, createdAt
+    }
     
     init(id: String = UUID().uuidString, title: String, priority: Priority = .medium, category: Category? = nil, note: String = "", startDate: Date, interval: Int, frequency: RoutineFrequency, freezeCount: Int = 0, isActive: Bool = true) {
         self.id = id

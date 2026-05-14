@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 
-
 // MARK: - Enums
 enum Category: String, CaseIterable, Codable, Identifiable {
     case business = "İş"
@@ -45,7 +44,6 @@ enum Priority: String, CaseIterable, Codable {
     case high = "Yüksek"
     case urgent = "Çok Acil"
     
-    // 🛠️ EKSİK OLAN KISIM BURASIYDI:
     var color: Color {
         switch self {
         case .low: return .blue
@@ -57,29 +55,24 @@ enum Priority: String, CaseIterable, Codable {
 }
 
 // MARK: - Model
-// ✨ SENIOR FIX: 'Codable' ve 'Identifiable' eklendi!
-// Codable: Bu modelin Firebase'e JSON formatında ışınlanmasını sağlar.
 struct TaskModel: AppEntity, Equatable, Codable, Identifiable {
-    // Senin yerel id sistemini koruduk ki UI tarafları patlamasın!
     var id: String = UUID().uuidString
     var title: String
     var isCompleted: Bool = false
     var priority: Priority = .medium
     var category: Category? = nil
     var createdAt: Date = Date()
-    
-    // ✨ İstatistik Motoru (Zirve Saat) için gerekli
     var completedAt: Date? = nil
-    
     var isPrivate: Bool = false
     var note: String = ""
-    
-    // Medya Referansları (Disk ID'leri)
     var imageIDs: [String] = []
     var audioID: String?
-    
-    // ✨ HATAYI ÇÖZEN KISIM: Rutin Bağlantıları
-    // Bu ikisi olmazsa TaskViewModel'deki akıllı sıralama (Smart Sorting) çöker!
     var routineID: String? = nil
     var delayedCount: Int? = 0
+    
+    // 🛡️ SENIOR FIX: FIRESTORE GÜVENLİK DUVARI (CodingKeys)
+    // Firestore'a "Sadece bu listedekileri al, renklere/ikonlara karışma!" diyoruz.
+    enum CodingKeys: String, CodingKey {
+        case id, title, isCompleted, priority, category, createdAt, completedAt, isPrivate, note, imageIDs, audioID, routineID, delayedCount
+    }
 }

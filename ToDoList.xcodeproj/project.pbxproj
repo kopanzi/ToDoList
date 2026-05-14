@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		171860DB2FB67D0D00E4A066 /* FirebaseStorage in Frameworks */ = {isa = PBXBuildFile; productRef = 171860DA2FB67D0D00E4A066 /* FirebaseStorage */; };
 		176BB5322FB10C66009E6905 /* FirebaseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 176BB5312FB10C66009E6905 /* FirebaseAnalytics */; };
 		176BB5342FB10C66009E6905 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 176BB5332FB10C66009E6905 /* FirebaseAuth */; };
 		176BB5362FB10C66009E6905 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 176BB5352FB10C66009E6905 /* FirebaseFirestore */; };
@@ -115,6 +116,7 @@
 				176BB5322FB10C66009E6905 /* FirebaseAnalytics in Frameworks */,
 				176BB5362FB10C66009E6905 /* FirebaseFirestore in Frameworks */,
 				176BB53B2FB121B3009E6905 /* GoogleSignInSwift in Frameworks */,
+				171860DB2FB67D0D00E4A066 /* FirebaseStorage in Frameworks */,
 				176BB5342FB10C66009E6905 /* FirebaseAuth in Frameworks */,
 				179F75582EF35A2300503A7D /* GoogleGenerativeAI in Frameworks */,
 			);
@@ -202,6 +204,7 @@
 				176BB5352FB10C66009E6905 /* FirebaseFirestore */,
 				176BB5382FB121B3009E6905 /* GoogleSignIn */,
 				176BB53A2FB121B3009E6905 /* GoogleSignInSwift */,
+				171860DA2FB67D0D00E4A066 /* FirebaseStorage */,
 			);
 			productName = ToDoList;
 			productReference = 17F954202EEA1CBE0080A26A /* ToDoList.app */;
@@ -502,8 +505,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ToDoList/ToDoList.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GN374RNLMG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ToDoList/Info.plist;
@@ -528,6 +533,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kopanzi.ToDoList;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -544,8 +550,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = ToDoList/ToDoList.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = GN374RNLMG;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ToDoList/Info.plist;
@@ -570,6 +578,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kopanzi.ToDoList;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
@@ -640,6 +649,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		171860DA2FB67D0D00E4A066 /* FirebaseStorage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 176BB5302FB10C66009E6905 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseStorage;
+		};
 		176BB5312FB10C66009E6905 /* FirebaseAnalytics */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 176BB5302FB10C66009E6905 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;

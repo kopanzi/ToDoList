@@ -1,10 +1,10 @@
 import Foundation
 import Combine
 import SwiftUI
+import FirebaseAuth // ✨ SENIOR FIX: Bulut bağlantısı için eklendi
 
 /// Yaver'in rutinleri yöneten, zamanı geldiğinde görev üreten ve serileri takip eden arka plan beyni.
-/// Senior Notu: Hayalet Çalışan (Ghost Worker) mimarisi ile uygulama kapalıyken kaçırılan
-/// döngüleri tespit eder ve akıllı yığılma (Stacking) algoritması ile görev listesine enjekte eder.
+/// Senior Notu: Hayalet Çalışan (Ghost Worker) mimarisi korunmuş, Firestore Cloud Sync eklenmiştir.
 @MainActor
 final class RoutineManager: ObservableObject {
     
@@ -16,19 +16,73 @@ final class RoutineManager: ObservableObject {
     private let userDefaults = UserDefaults.standard
     
     // MARK: - Published State
-    /// Kayıtlı rutinlerin listesi. Dışarıdan sadece okunabilir, değişiklik manager üzerinden yapılır.
     @Published private(set) var routines: [RoutineModel] = []
     
     // MARK: - Initialization
     private init() {
         loadRoutines()
+        
+        // ✨ SENIOR FIX: Kullanıcı giriş yaptığını algıla ve buluttaki rutinleri telefona çek
+        _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            if user != nil {
+                self?.syncRoutinesWithCloud()
+            }
+        }
+    }
+    
+    // MARK: - CLOUD SYNC (BULUT MOTORU) ✨
+    
+    private func syncRoutinesWithCloud() {
+        Task {
+            do {
+                let cloudRoutines = try await FirestoreManager.shared.fetchRoutines()
+                
+                if cloudRoutines.isEmpty && !self.routines.isEmpty {
+                    await FirestoreManager.shared.syncLocalRoutinesToCloud(routines: self.routines)
+                } else if !cloudRoutines.isEmpty {
+                    var merged = self.routines
+                    for cloudR in cloudRoutines {
+                        if let index = merged.firstIndex(where: { $0.id == cloudR.id }) {
+                            merged[index] = cloudR
+                        } else {
+                            merged.append(cloudR)
+                        }
+                    }
+                    self.routines = merged
+                    saveRoutines() // Yereli de güncelle
+                    await FirestoreManager.shared.syncLocalRoutinesToCloud(routines: merged)
+                }
+            } catch {
+                print("🛑 Rutinler Bulut Senkronizasyon Hatası: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func saveRoutineToCloud(_ routine: RoutineModel) {
+            guard Auth.auth().currentUser != nil else {
+                print("🛑 HATA: Kullanıcı giriş yapmamış, rutin buluta gidemez!")
+                return
+            }
+            Task {
+                do {
+                    try await FirestoreManager.shared.saveRoutine(routine)
+                    print("✅ RUTİN BAŞARIYLA BULUTA GİTTİ: \(routine.title)")
+                } catch {
+                    print("🛑 RUTİN BULUT HATASI: \(error.localizedDescription)")
+                    print("🛑 DETAYLI HATA: \(error)")
+                }
+            }
+        }
+    
+    private func deleteRoutineFromCloud(id: String) {
+        guard Auth.auth().currentUser != nil else { return }
+        Task { try? await FirestoreManager.shared.deleteRoutine(id: id) }
     }
     
     // MARK: - Persistence (Kalıcılık)
     
     private func loadRoutines() {
         guard let data = userDefaults.data(forKey: storageKey) else { return }
-        
         do {
             self.routines = try JSONDecoder().decode([RoutineModel].self, from: data)
         } catch {
@@ -53,9 +107,10 @@ final class RoutineManager: ObservableObject {
             routines.append(routine)
             saveRoutines()
         }
+        // ✨ Buluta Kaydet
+        saveRoutineToCloud(routine)
         
         HapticManager.shared.triggerSuccess()
-        // Bildirim kuyruğunu hazırla (Gelecek 5 tetiklenme)
         NotificationManager.shared.scheduleRoutineNotifications(for: routine)
     }
     
@@ -64,9 +119,10 @@ final class RoutineManager: ObservableObject {
             routines.removeAll { $0.id == id }
             saveRoutines()
         }
+        // ✨ Buluttan Sil
+        deleteRoutineFromCloud(id: id)
         
         HapticManager.shared.triggerMediumImpact()
-        // Planlanmış bildirimleri temizle
         NotificationManager.shared.cancelRoutineNotification(for: id)
     }
     
@@ -75,58 +131,56 @@ final class RoutineManager: ObservableObject {
         
         withAnimation(.spring()) {
             routines[index].isActive.toggle()
-            
             if routines[index].isActive {
-                // Yeniden aktif edildiğinde süreci şimdiden başlat
                 routines[index].nextTriggerDate = Date()
                 NotificationManager.shared.scheduleRoutineNotifications(for: routines[index])
             } else {
                 NotificationManager.shared.cancelRoutineNotification(for: id)
             }
-            
             saveRoutines()
+            // ✨ Değişikliği Buluta Yolla
+            saveRoutineToCloud(routines[index])
             HapticManager.shared.triggerLightImpact()
         }
     }
     
     // MARK: - Gamification (Oyunlaştırma)
     
-    /// Rutin görev tamamlandığında seriyi (Streak) günceller.
     func incrementStreak(for routineID: String) {
         guard let index = routines.firstIndex(where: { $0.id == routineID }) else { return }
-        
         routines[index].streakCount += 1
         routines[index].lastCompletedDate = Date()
         saveRoutines()
+        // ✨ Seriyi Buluta Yolla
+        saveRoutineToCloud(routines[index])
     }
     
-    /// XP harcayarak seri koruma (Buz Küpü) satın alır.
     func buyFreeze(for routineID: String, taskViewModel: TaskViewModel) -> Bool {
         let freezeCost = 500
         guard taskViewModel.userXP >= freezeCost else { return false }
-        
         guard let index = routines.firstIndex(where: { $0.id == routineID }) else { return false }
         
         taskViewModel.userXP -= freezeCost
         routines[index].freezeCount += 1
         saveRoutines()
+        // ✨ Yeni Kalkanı Buluta Yolla
+        saveRoutineToCloud(routines[index])
         
         HapticManager.shared.triggerSuccess()
         return true
     }
     
-    /// Rutinden gelen görevi seriyi bozmadan listeden kaldırır.
     func skipRoutineTask(_ task: TaskModel, taskViewModel: TaskViewModel) {
         withAnimation {
             taskViewModel.tasks.removeAll { $0.id == task.id }
             NotificationManager.shared.cancelNotification(for: task.id)
         }
+        // Görevin silinmesi TaskViewModel tarafında zaten buluta senkronize edilecek.
         HapticManager.shared.triggerSuccess()
     }
     
     // MARK: - 👻 Ghost Worker (Hayalet Çalışan Motoru)
     
-    /// Uygulama her ön plana geldiğinde kaçırılan rutin döngülerini kontrol eder.
     func checkRoutines(with taskViewModel: TaskViewModel) {
         let now = Date()
         var hasAnyTaskProduced = false
@@ -136,8 +190,6 @@ final class RoutineManager: ObservableObject {
             guard routine.isActive else { continue }
             
             var missedCycles = 0
-            
-            // Zaman yolculuğu kontrolü: Şimdiki zamana gelene kadar kaç döngü geçti?
             while routine.nextTriggerDate <= now {
                 missedCycles += 1
                 routine.nextTriggerDate = calculateNextDate(from: routine.nextTriggerDate, interval: routine.interval, frequency: routine.frequency)
@@ -145,11 +197,12 @@ final class RoutineManager: ObservableObject {
             
             if missedCycles > 0 {
                 processRoutineTask(routine: &routine, missedCount: missedCycles, taskViewModel: taskViewModel)
-                routines[i] = routine // Güncel verileri (nextTriggerDate, freezeCount vb.) geri yaz
+                routines[i] = routine
                 hasAnyTaskProduced = true
                 
-                // Bildirim kuyruğunu tazele
                 NotificationManager.shared.scheduleRoutineNotifications(for: routine)
+                // ✨ Güncel Döngüyü Buluta Yolla (Seri bozulmuş veya kalkan kullanılmış olabilir)
+                saveRoutineToCloud(routine)
             }
         }
         
@@ -162,17 +215,13 @@ final class RoutineManager: ObservableObject {
     // MARK: - 🥞 Akıllı Yığılma (Stacking) Algoritması
     
     private func processRoutineTask(routine: inout RoutineModel, missedCount: Int, taskViewModel: TaskViewModel) {
-        // Eğer görev listede bitmemiş halde duruyorsa (Yığılma Durumu)
         if let existingIndex = taskViewModel.tasks.firstIndex(where: { $0.routineID == routine.id && !$0.isCompleted }) {
-            
-            // 🧊 SERİ DONDURUCU (Freeze) KONTROLÜ
             if routine.freezeCount > 0 {
-                routine.freezeCount -= 1 // Kalkanı kullan
+                routine.freezeCount -= 1
             } else {
-                routine.streakCount = 0 // Kalkan yoksa seri acımasızca sıfırlanır
+                routine.streakCount = 0
             }
             
-            // Görevi güncelle ve aciliyet ata
             var existingTask = taskViewModel.tasks[existingIndex]
             let newDelayedCount = (existingTask.delayedCount ?? 0) + missedCount
             existingTask.delayedCount = newDelayedCount
@@ -182,8 +231,8 @@ final class RoutineManager: ObservableObject {
             withAnimation {
                 taskViewModel.tasks[existingIndex] = existingTask
             }
+            // Not: existingTask'in güncellenmesi, TaskViewModel tarafından zaten dinlenip buluta atılacak.
         } else {
-            // Liste temizse yeni bir görev fırlat
             let title = missedCount > 1 ? "\(routine.title) (🚨 \(missedCount) Kez Gecikti)" : routine.title
             let priority: Priority = missedCount > 1 ? .urgent : routine.priority
             

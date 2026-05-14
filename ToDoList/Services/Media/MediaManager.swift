@@ -1,61 +1,111 @@
 import Foundation
 import UIKit
+import FirebaseStorage // ✨ SENIOR FIX: Bulut Medya Kütüphanesi
+import FirebaseAuth
 
-/// Uygulamanın medya (Resim ve Ses) dosyalarını fiziksel diskte saklar ve Hafıza(RAM) yönetimini yapar.
-/// Senior Notu: OOM (Out of Memory) çökmelerini önlemek için NSCache ve Downsampling eklendi.
+/// Uygulamanın medya (Resim ve Ses) dosyalarını fiziksel diskte ve BULUTTA (Firebase Storage) saklar.
 final class MediaManager {
     static let shared = MediaManager()
     private let fileManager = FileManager.default
-    
-    // 🧠 RAM DOSTU: Resimleri bellekte tutan, dolduğunda iOS tarafından otomatik temizlenen özel Cache.
     private let imageCache = NSCache<NSString, UIImage>()
     
-    /// Dökümanlar klasörünün yolunu döndürür.
     private var documentsDirectory: URL {
         fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }
     
     private init() {
-        // Cache limitlerini belirliyoruz ki uygulama RAM'i sömürmesin
-        imageCache.countLimit = 100 // Maksimum 100 resmi hafızada tut
-        imageCache.totalCostLimit = 1024 * 1024 * 150 // Maksimum ~150 MB RAM kullan
+        imageCache.countLimit = 100
+        imageCache.totalCostLimit = 1024 * 1024 * 150
+    }
+    
+    // MARK: - ☁️ CLOUD SYNC (MEDYA BULUT MOTORU)
+    
+    private func getCloudRef(id: String, ext: String) -> StorageReference? {
+        guard let userId = Auth.auth().currentUser?.uid else { return nil }
+        // Yol: artifacts/yaver-todo-app/users/{userId}/media/{id}.{ext}
+        return Storage.storage().reference().child("artifacts/yaver-todo-app/users/\(userId)/media/\(id).\(ext)")
+    }
+    
+    private func uploadMedia(id: String, data: Data, ext: String) {
+        guard let ref = getCloudRef(id: id, ext: ext) else { return }
+        let metadata = StorageMetadata()
+        metadata.contentType = ext == "jpg" ? "image/jpeg" : "audio/m4a"
+        
+        // Arka planda sessizce yükle (UI donmaz)
+        ref.putData(data, metadata: metadata) { _, error in
+            if let error = error {
+                print("🛑 Medya Bulut Yükleme Hatası (\(ext)): \(error.localizedDescription)")
+            } else {
+                print("☁️✅ Medya Buluta Uçtu: \(id).\(ext)")
+            }
+        }
+    }
+    
+    private func deleteMediaFromCloud(id: String, ext: String) {
+        guard let ref = getCloudRef(id: id, ext: ext) else { return }
+        ref.delete { _ in
+            print("🗑️☁️ Medya Buluttan Silindi: \(id).\(ext)")
+        }
+    }
+    
+    /// Eksik olan dosyayı buluttan cihaza indirir.
+    func downloadMediaIfNeeded(id: String, ext: String) async {
+        let fileURL = documentsDirectory.appendingPathComponent("\(id).\(ext)")
+        if fileManager.fileExists(atPath: fileURL.path) { return } // Telefonda zaten var, indirmeye gerek yok!
+        
+        guard let ref = getCloudRef(id: id, ext: ext) else { return }
+        
+        do {
+            // Maksimum 50 MB'a kadar olan dosyaları indir
+            let data = try await ref.data(maxSize: 50 * 1024 * 1024)
+            try data.write(to: fileURL)
+            print("☁️⬇️ Medya Buluttan Telefona İndi: \(id).\(ext)")
+        } catch {
+            print("🛑 Medya İndirme Hatası (\(id)): \(error.localizedDescription)")
+        }
+    }
+    
+    /// Başka cihazdan gelen yeni notların medyalarını arka planda telefona çeker.
+    func syncMissingMedia(from notes: [NotModel]) {
+        Task {
+            for note in notes {
+                for imgId in note.gorselIDListesi {
+                    await downloadMediaIfNeeded(id: imgId, ext: "jpg")
+                }
+                for audioId in note.tumSesler {
+                    await downloadMediaIfNeeded(id: audioId, ext: "m4a")
+                }
+            }
+        }
     }
     
     // MARK: - Image Operations
     
-    /// Resmi RAM dostu boyutlara küçültüp, JPEG formatında diske kaydeder.
     func saveImage(_ image: UIImage) -> String? {
         let id = UUID().uuidString
-        
-        // 🛠️ ANTI-OOM ÇÖZÜMÜ: Cihaz kamerasından gelen 4K devasa fotoğrafları makul bir boyuta çek.
         let resizedImage = resizeImage(image: image, targetSize: CGSize(width: 1024, height: 1024))
-        
         guard let data = resizedImage.jpegData(compressionQuality: 0.7) else { return nil }
         let fileURL = documentsDirectory.appendingPathComponent("\(id).jpg")
         
         do {
             try data.write(to: fileURL)
-            // Kaydeder kaydetmez Cache'e de at ki hemen gösterilecekse disk yorulmasın
             imageCache.setObject(resizedImage, forKey: id as NSString)
+            
+            // ✨ YENİ: Diske kaydeder kaydetmez buluta da fırlat!
+            uploadMedia(id: id, data: data, ext: "jpg")
+            
             return id
         } catch {
-            print("🛑 MediaManager Image Save Error: \(error)")
             return nil
         }
     }
     
-    /// ID kullanarak resmi yükler (Önce Cache'e bakar, yoksa diskten okur).
     func loadImage(id: String) -> UIImage? {
-        // 1. Önce RAM'de (Cache) var mı diye kontrol et (Işık hızında yüklenir)
-        if let cachedImage = imageCache.object(forKey: id as NSString) {
-            return cachedImage
-        }
+        if let cachedImage = imageCache.object(forKey: id as NSString) { return cachedImage }
         
-        // 2. RAM'de yoksa Diskten (Dosya Sisteminden) oku
         let fileURL = documentsDirectory.appendingPathComponent("\(id).jpg")
         guard let image = UIImage(contentsOfFile: fileURL.path) else { return nil }
         
-        // 🛠️ Eğer bu resim güncelleme öncesinden kalan DEVASA bir resimse (eski veriler), onu yüklerken küçült
         let finalImage: UIImage
         if image.size.width > 1024 || image.size.height > 1024 {
             finalImage = resizeImage(image: image, targetSize: CGSize(width: 1024, height: 1024))
@@ -63,41 +113,26 @@ final class MediaManager {
             finalImage = image
         }
         
-        // 3. Bir dahaki sefere hızlı yüklenmesi için Cache'e kaydet
         imageCache.setObject(finalImage, forKey: id as NSString)
-        
         return finalImage
     }
     
-    // MARK: - Image Resizing Engine
-    
-    /// Verilen resmi, en-boy oranını bozmadan hedeflenen maksimum boyuta küçültür.
     private func resizeImage(image: UIImage, targetSize: CGSize) -> UIImage {
         let size = image.size
-        
-        // Eğer resim zaten hedef boyuttan küçükse hiç dokunma
-        if size.width <= targetSize.width && size.height <= targetSize.height {
-            return image
-        }
-        
+        if size.width <= targetSize.width && size.height <= targetSize.height { return image }
         let widthRatio  = targetSize.width  / size.width
         let heightRatio = targetSize.height / size.height
-        
-        // Orijinal en-boy (Aspect Ratio) oranını koru
         var newSize: CGSize
         if widthRatio > heightRatio {
             newSize = CGSize(width: size.width * heightRatio, height: size.height * heightRatio)
         } else {
             newSize = CGSize(width: size.width * widthRatio,  height: size.height * widthRatio)
         }
-        
-        // Yeni boyutta resmi çiz
         let rect = CGRect(origin: .zero, size: newSize)
         UIGraphicsBeginImageContextWithOptions(newSize, false, 1.0)
         image.draw(in: rect)
         let newImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
-        
         return newImage ?? image
     }
     
@@ -108,9 +143,12 @@ final class MediaManager {
         let fileURL = documentsDirectory.appendingPathComponent("\(id).m4a")
         do {
             try data.write(to: fileURL)
+            
+            // ✨ YENİ: Diske kaydeder kaydetmez buluta da fırlat!
+            uploadMedia(id: id, data: data, ext: "m4a")
+            
             return id
         } catch {
-            print("🛑 MediaManager Audio Save Error: \(error)")
             return nil
         }
     }
@@ -126,13 +164,11 @@ final class MediaManager {
         let fileURL = documentsDirectory.appendingPathComponent("\(id).\(fileExtension)")
         do {
             try fileManager.removeItem(at: fileURL)
-            // Eğer resim siliniyorsa RAM'den de uçur
-            if fileExtension == "jpg" {
-                imageCache.removeObject(forKey: id as NSString)
-            }
-            print("🗑️ Dosya silindi: \(id).\(fileExtension)")
-        } catch {
-            print("⚠️ Dosya silinemedi veya zaten yok: \(error)")
-        }
+            if fileExtension == "jpg" { imageCache.removeObject(forKey: id as NSString) }
+            
+            // ✨ YENİ: Diskten silinince buluttan da sil!
+            deleteMediaFromCloud(id: id, ext: fileExtension)
+            
+        } catch { }
     }
 }
