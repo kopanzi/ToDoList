@@ -1,9 +1,9 @@
 import SwiftUI
 
 /// Uygulamanın 'Komuta Merkezi' olan istatistik ekranı.
-/// Senior Notu: Eski MeshGradient ve statik renkler tamamen kaldırılarak
-/// Apple HIG (Sistem Arkaplanı + Adaptive Renkler) standartlarına geçirilmiştir.
-/// mainMeshColors hatası çözülmüştür.
+/// Senior Notu: Bento kutularının (Bitirme Oranı, Zirve Saat, Odak Süresi) her birine
+/// bağımsız zaman filtreleri (.daily, .weekly vb.) eklenerek tam bir Apple Dashboard havası katılmıştır.
+/// Tüm derleyici (compiler) uyarıları ve bağlayıcı hataları kesin olarak giderilmiştir.
 struct StatisticsView: View {
     // MARK: - Properties
     @EnvironmentObject var taskVM: TaskViewModel
@@ -14,7 +14,6 @@ struct StatisticsView: View {
     var body: some View {
         ZStack {
             // 1. DİNAMİK ARKA PLAN (Apple Native HIG)
-            // ✨ SENIOR FIX: Hata veren Mesh Gradient silindi, Adaptive Sistem Arka Planı eklendi.
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
             
@@ -52,31 +51,25 @@ struct StatisticsView: View {
         }
         // Sayfa açıldığında verileri işle
         .onAppear {
-            statsVM.processTasks(
-                activeTasks: taskVM.tasks,
-                archivedTasks: taskVM.archivedTasks,
-                lifetimeAdded: taskVM.lifetimeAddedTasks,
-                lifetimeCompleted: taskVM.lifetimeCompletedTasks
-            )
+            processAllData()
         }
-        // Görevlerde bir değişiklik olursa grafikleri anında canlı güncelle
-        .onChange(of: taskVM.tasks) { _, newTasks in
-            statsVM.processTasks(
-                activeTasks: newTasks,
-                archivedTasks: taskVM.archivedTasks,
-                lifetimeAdded: taskVM.lifetimeAddedTasks,
-                lifetimeCompleted: taskVM.lifetimeCompletedTasks
-            )
-        }
-        // Arşiv (çöpe atılan bitmiş görevler) değişirse de grafikleri güncelle
-        .onChange(of: taskVM.archivedTasks) { _, newArchived in
-            statsVM.processTasks(
-                activeTasks: taskVM.tasks,
-                archivedTasks: newArchived,
-                lifetimeAdded: taskVM.lifetimeAddedTasks,
-                lifetimeCompleted: taskVM.lifetimeCompletedTasks
-            )
-        }
+        // Görevlerde veya Odaklanma sürelerinde değişiklik olursa grafikleri anında canlı güncelle
+        .onChange(of: taskVM.tasks) { _, _ in processAllData() }
+        .onChange(of: taskVM.archivedTasks) { _, _ in processAllData() }
+        .onChange(of: taskVM.focusSessions) { _, _ in processAllData() }
+    }
+    
+    // MARK: - Merkezi Veri İşleme Motoru
+    private func processAllData() {
+        // 1. Görev verilerini işle
+        statsVM.processTasks(
+            activeTasks: taskVM.tasks,
+            archivedTasks: taskVM.archivedTasks,
+            lifetimeAdded: taskVM.lifetimeAddedTasks,
+            lifetimeCompleted: taskVM.lifetimeCompletedTasks
+        )
+        // 2. Odaklanma sürelerini işle
+        statsVM.processFocusSessions(taskVM.focusSessions)
     }
 }
 
@@ -88,11 +81,11 @@ private extension StatisticsView {
             Text("İSTATİSTİKLER")
                 .font(.system(size: 10, weight: .black))
                 .tracking(2)
-                .foregroundColor(appearance.accentColor) // ✨ Tema Rengi
+                .foregroundColor(appearance.accentColor) // Tema Rengi
             
             Text("Üretkenlik Raporu")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
-                .foregroundColor(.primary) // ✨ Adaptive (Karanlıkta beyaz, aydınlıkta siyah)
+                .foregroundColor(.primary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
@@ -118,27 +111,26 @@ private extension StatisticsView {
             VStack(alignment: .leading, spacing: 6) {
                 Text("YAVER İLE YOLCULUĞUN")
                     .font(.system(size: 10, weight: .black))
-                    .foregroundColor(.secondary) // ✨ Adaptive
+                    .foregroundColor(.secondary)
                     .tracking(1)
                 
-                // Text yapılarını birleştirerek içindeki sadece bazı kelimeleri renklendiriyoruz!
                 journeyMessageView(completed: completedCount, total: totalCount)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundColor(.primary.opacity(0.9)) // ✨ Adaptive
+                    .foregroundColor(.primary.opacity(0.9))
                     .lineSpacing(2)
             }
             
             Spacer(minLength: 0)
         }
         .padding(20)
-        // ✨ GLASSMORPHISM (Adaptive)
+        // GLASSMORPHISM (Adaptive)
         .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(24)
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
         .padding(.horizontal, 20)
     }
     
-    // ✨ YAVER'İN ZEKA MOTORU: Görev durumuna göre farklı cümleler kurar
+    // YAVER'İN ZEKA MOTORU
     func journeyMessageView(completed: Int, total: Int) -> Text {
         if total == 0 {
             return Text("Henüz bir görev eklemedin. Maceraya başlamak için ilk görevini oluştur!")
@@ -161,16 +153,10 @@ private extension StatisticsView {
         // Profildeki 4'lü Bento Box
         LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 15) {
             
-            // 1. Bitirme Oranı
-            StatMiniCard(
-                title: "BİTİRME",
-                value: "%\(statsVM.userStats.completionRate)",
-                subtitle: "Oran",
-                icon: "checkmark.circle.fill",
-                color: .green
-            )
+            // 1. Bitirme Oranı (Filtreli)
+            CompletionRateCard(statsVM: statsVM)
             
-            // 2. Seri (Streak)
+            // 2. Seri (Streak - Her zaman bugünkü aktif seriyi gösterir)
             StatMiniCard(
                 title: "SERİ",
                 value: "\(statsVM.userStats.streakCount)",
@@ -179,30 +165,179 @@ private extension StatisticsView {
                 color: .orange
             )
             
-            // 3. Zirve Saat
-            StatMiniCard(
-                title: "ZİRVE SAAT",
-                value: statsVM.userStats.efficiencyTime,
-                subtitle: "Ortalama",
-                icon: "bolt.fill",
-                color: .blue
-            )
+            // 3. Zirve Saat (Filtreli)
+            PeakTimeCard(statsVM: statsVM)
             
-            // 4. Kazanılan Zaman
-            StatMiniCard(
-                title: "KAZANÇ",
-                value: statsVM.userStats.timeSaved,
-                subtitle: "Zaman",
-                icon: "timer",
-                color: .purple
-            )
+            // 4. Odaklanma Süresi (Filtreli)
+            FocusTimeCard(statsVM: statsVM)
         }
         .padding(.horizontal, 20)
     }
 }
 
-// MARK: - Mini Kutu Tasarımı (StatMiniCard)
-/// En üstte duran 4'lü özet kutucuklarının tasarımı
+// MARK: - 1. DİNAMİK BİTİRME ORANI KARTI (Zaman Filtreli)
+struct CompletionRateCard: View {
+    @ObservedObject var statsVM: StatisticsViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.system(size: 14, weight: .bold))
+                
+                Spacer()
+                
+                Menu {
+                    Picker("Filtre", selection: $statsVM.completionRateFilter) {
+                        ForEach(StatisticsViewModel.TimeFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(statsVM.completionRateFilter.rawValue)
+                        Image(systemName: "chevron.down")
+                    }
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Color.primary.opacity(0.05))
+                    .cornerRadius(6)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 0) {
+                Text(statsVM.completionRateString)
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: statsVM.completionRateString)
+                
+                Text("Bitirme Oranı")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
+        .cornerRadius(24)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+    }
+}
+
+// MARK: - 2. DİNAMİK ZİRVE SAAT KARTI (Zaman Filtreli)
+struct PeakTimeCard: View {
+    @ObservedObject var statsVM: StatisticsViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "bolt.fill")
+                    .foregroundColor(.blue)
+                    .font(.system(size: 14, weight: .bold))
+                
+                Spacer()
+                
+                Menu {
+                    Picker("Filtre", selection: $statsVM.peakTimeFilter) {
+                        ForEach(StatisticsViewModel.TimeFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(statsVM.peakTimeFilter.rawValue)
+                        Image(systemName: "chevron.down")
+                    }
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Color.primary.opacity(0.05))
+                    .cornerRadius(6)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 0) {
+                Text(statsVM.peakTimeString)
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: statsVM.peakTimeString)
+                
+                Text("Zirve Saat")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
+        .cornerRadius(24)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+    }
+}
+
+// MARK: - 3. DİNAMİK ODAK SÜRESİ KARTI (Zaman Filtreli)
+struct FocusTimeCard: View {
+    @ObservedObject var statsVM: StatisticsViewModel
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "hourglass")
+                    .foregroundColor(.purple)
+                    .font(.system(size: 14, weight: .bold))
+                
+                Spacer()
+                
+                Menu {
+                    Picker("Filtre", selection: $statsVM.focusTimeFilter) {
+                        ForEach(StatisticsViewModel.TimeFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(statsVM.focusTimeFilter.rawValue)
+                        Image(systemName: "chevron.down")
+                    }
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(Color.primary.opacity(0.05))
+                    .cornerRadius(6)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 0) {
+                Text(statsVM.focusTimeString)
+                    .font(.system(size: 24, weight: .black, design: .rounded))
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: statsVM.focusTimeString)
+                
+                Text("Odaklanılan")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
+        .cornerRadius(24)
+        .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))
+    }
+}
+
+// MARK: - STANDART MİNİ KART TASARIMI (Seri için kullanılır)
 struct StatMiniCard: View {
     let title: String
     let value: String
@@ -221,24 +356,23 @@ struct StatMiniCard: View {
                 
                 Text(title)
                     .font(.system(size: 9, weight: .black))
-                    .foregroundColor(.secondary) // ✨ Adaptive
+                    .foregroundColor(.secondary)
             }
             
             VStack(alignment: .leading, spacing: 0) {
                 Text(value)
                     .font(.system(size: 24, weight: .black, design: .rounded))
-                    .foregroundColor(.primary) // ✨ Adaptive
+                    .foregroundColor(.primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.5) // Yazı çok uzunsa sığdırmak için küçülür
+                    .minimumScaleFactor(0.5)
                 
                 Text(subtitle)
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.secondary) // ✨ Adaptive
+                    .foregroundColor(.secondary)
             }
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        // ✨ GLASSMORPHISM EFEKTİ (Adaptive)
         .background(Color.primary.opacity(0.03).background(.ultraThinMaterial))
         .cornerRadius(24)
         .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.primary.opacity(0.05), lineWidth: 1))

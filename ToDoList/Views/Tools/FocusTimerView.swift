@@ -205,7 +205,7 @@ private extension FocusTimerView {
                     .tracking(1.5)
             }
         }
-        .buttonStyle(SquishButtonStyle()) // ✨ Hata veren stil artık aşağıda tanımlı
+        .buttonStyle(SquishButtonStyle())
     }
     
     var rewardPopup: some View {
@@ -296,18 +296,40 @@ private extension FocusTimerView {
     func resumeTimer() { startTimer() }
     func resetTimer() { HapticManager.shared.triggerWarning(); stopTimer(); if currentMode == .rest { handleModeResetToFocus() } else { timeRemaining = totalTime } }
     func stopTimer() { isRunning = false; isPaused = false; timer?.invalidate(); timer = nil }
+    
+    // ✨ SENIOR FIX: Sayaç bitince Odaklanılan Süre (FocusSession) veritabanına kaydedilir
     func finishTimer() {
-        stopTimer(); HapticManager.shared.triggerSuccess()
+        stopTimer()
+        HapticManager.shared.triggerSuccess()
+        
         DispatchQueue.main.async {
             if currentMode == .focus {
-                let calculatedXP = (totalTime / 60) * 2; self.earnedXP = max(10, calculatedXP); taskVM.userXP += self.earnedXP; taskVM.showConfetti = true
-                withAnimation(.spring(response: 0.5)) { showRewardScreen = true }
-            } else { withAnimation(.spring(response: 0.5)) { showBreakFinishedScreen = true } }
+                let minutes = totalTime / 60
+                
+                // 1. Odak seansını veritabanına (TaskVM) kaydet!
+                taskVM.addFocusSession(minutes: minutes)
+                
+                // 2. Kazanılan XP'yi hesapla (Dakika başı 2 XP)
+                let calculatedXP = minutes * 2
+                self.earnedXP = max(10, calculatedXP) // En az 10 XP garantisi
+                taskVM.userXP += self.earnedXP
+                
+                // 3. Konfetileri ve ödül ekranını patlat
+                taskVM.showConfetti = true
+                withAnimation(.spring(response: 0.5)) {
+                    showRewardScreen = true
+                }
+            } else {
+                // Mola bitiş ekranı
+                withAnimation(.spring(response: 0.5)) {
+                    showBreakFinishedScreen = true
+                }
+            }
         }
     }
 }
 
-// MARK: - ✨ MISSING STYLE FIX
+// MARK: - Styles
 /// Butonlara tıklandığında hafifçe küçülme ve şeffaflaşma efekti veren stil.
 struct SquishButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

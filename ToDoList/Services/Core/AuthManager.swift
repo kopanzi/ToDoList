@@ -4,10 +4,10 @@ import FirebaseCore
 import GoogleSignIn
 import AuthenticationServices
 import CryptoKit
-import Combine // ✨ FIX 1: ObservableObject için şart
+import Combine
 
 /// Yaver'in Kimlik Doğrulama (Authentication) Merkezi.
-final class AuthManager: ObservableObject {
+final class AuthManager: NSObject, ObservableObject { // ✨ SENIOR FIX 1: Özel butonlar için NSObject eklendi
     
     static let shared = AuthManager()
     
@@ -15,8 +15,10 @@ final class AuthManager: ObservableObject {
     @Published var isLoading: Bool = false
     
     private var currentNonce: String?
+    private var appleSignInContinuation: CheckedContinuation<Void, Error>? // ✨ SENIOR FIX 2: Özel Apple Butonu Bekleticisi
     
-    private init() {
+    private override init() { // ✨ SENIOR FIX 3: NSObject Override eklendi
+        super.init()
         // Firebase giriş durumunu dinle
         _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             self?.userSession = user
@@ -32,7 +34,6 @@ final class AuthManager: ObservableObject {
             throw URLError(.cannotFindHost)
         }
         
-        // ✨ FIX 2: GIDSignIn.shared yerine sharedInstance kullanıyoruz
         let signInResult = try await GIDSignIn.sharedInstance.signIn(withPresenting: rootViewController)
         
         guard let idToken = signInResult.user.idToken?.tokenString else {
@@ -45,18 +46,34 @@ final class AuthManager: ObservableObject {
         _ = try await Auth.auth().signIn(with: credential)
     }
     
-    // MARK: - 2. APPLE İLE GİRİŞ (HAZIRLIK)
-    func handleAppleRequest(_ request: ASAuthorizationAppleIDRequest) {
-        let nonce = randomNonceString()
-        currentNonce = nonce
-        request.nonce = sha256(nonce)
-    }
-    
-    // MARK: - 3. APPLE İLE GİRİŞ (BİTİŞ)
-    func handleAppleCompletion(_ result: Result<ASAuthorization, Error>) async throws {
+    // MARK: - 2. APPLE İLE GİRİŞ (ÖZEL BUTONLAR İÇİN YENİ METOT) ✨
+    @MainActor
+    func signInWithApple() async throws {
         isLoading = true
         defer { isLoading = false }
         
+        return try await withCheckedThrowingContinuation { continuation in
+            self.appleSignInContinuation = continuation
+            
+            let appleIDProvider = ASAuthorizationAppleIDProvider()
+            let request = appleIDProvider.createRequest()
+            request.requestedScopes = [.fullName, .email]
+            
+            // Nonce üret ve request'e ekle
+            let nonce = randomNonceString()
+            self.currentNonce = nonce
+            request.nonce = sha256(nonce)
+            
+            // Apple ekranını tetikle
+            let authorizationController = ASAuthorizationController(authorizationRequests: [request])
+            authorizationController.delegate = self
+            authorizationController.presentationContextProvider = self
+            authorizationController.performRequests()
+        }
+    }
+    
+    // MARK: - 3. APPLE İLE GİRİŞ (ARKA PLAN İŞLEMLERİ)
+    func handleAppleCompletion(_ result: Result<ASAuthorization, Error>) async throws {
         switch result {
         case .success(let authorization):
             if let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential {
@@ -64,7 +81,6 @@ final class AuthManager: ObservableObject {
                 guard let appleIDToken = appleIDCredential.identityToken else { throw URLError(.badServerResponse) }
                 guard let idTokenString = String(data: appleIDToken, encoding: .utf8) else { throw URLError(.badServerResponse) }
                 
-                // ✨ FIX 3: Yeni Firebase 11 metodu
                 let credential = OAuthProvider.appleCredential(
                     withIDToken: idTokenString,
                     rawNonce: nonce,
@@ -80,7 +96,7 @@ final class AuthManager: ObservableObject {
     
     func signOut() throws {
         try Auth.auth().signOut()
-        GIDSignIn.sharedInstance.signOut() // ✨ FIX 4: sharedInstance
+        GIDSignIn.sharedInstance.signOut()
     }
     
     // MARK: - CRYPTO HELPERS
@@ -97,5 +113,31 @@ final class AuthManager: ObservableObject {
         let inputData = Data(input.utf8)
         let hashedData = SHA256.hash(data: inputData)
         return hashedData.compactMap { String(format: "%02x", $0) }.joined()
+    }
+}
+
+// MARK: - Apple Sign In Delegates (Özel Buton Adaptörü) ✨
+extension AuthManager: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        return Utilities.shared.topViewController()?.view.window ?? UIWindow()
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        Task {
+            do {
+                try await self.handleAppleCompletion(.success(authorization))
+                self.appleSignInContinuation?.resume(returning: ())
+                self.appleSignInContinuation = nil
+            } catch {
+                self.appleSignInContinuation?.resume(throwing: error)
+                self.appleSignInContinuation = nil
+            }
+        }
+    }
+    
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        self.appleSignInContinuation?.resume(throwing: error)
+        self.appleSignInContinuation = nil
     }
 }

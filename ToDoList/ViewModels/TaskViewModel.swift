@@ -4,6 +4,13 @@ import WidgetKit
 import Combine
 import FirebaseAuth // ✨ SENIOR FIX: Otomatik giriş tespiti için eklendi
 
+// ✨ YENİ: Odak oturumlarını (Gerçek odaklanma süresini) tutacağımız veri modeli
+struct FocusSession: Codable, Identifiable, Equatable {
+    var id = UUID()
+    let date: Date
+    let durationMinutes: Int
+}
+
 /// Uygulamanın görev yönetimini, oyunlaştırma (XP) sistemini ve görsel tetikleyicilerini yöneten ana ViewModel.
 /// Senior Notu: @MainActor ile işaretlenmiştir, tüm UI güncellemeleri ana iş parçacığında güvenle yapılır.
 /// Veri kayıplarını önlemek için AppGroup, UserDefaults ve FIRESTORE işlemleri koruma altına alınmıştır.
@@ -36,6 +43,13 @@ final class TaskViewModel: ObservableObject {
         didSet {
             UserDefaults.standard.set(userXP, forKey: "userXP")
             reloadWidgets()
+        }
+    }
+    
+    // ✨ YENİ: Kullanıcının alın teri olan Odaklanma Süreleri Arşivi
+    @Published var focusSessions: [FocusSession] = [] {
+        didSet {
+            saveFocusSessions()
         }
     }
     
@@ -85,9 +99,10 @@ final class TaskViewModel: ObservableObject {
         loadTasks()
         AppearanceManager.shared.updateAppearance(with: tasks)
         loadArchivedTasks()
+        loadFocusSessions() // ✨ YENİ: Başlangıçta odak sürelerini yükle
         validateLifetimeCounters()
         
-        // ✨ SENIOR FIX: Kullanıcı giriş yaptığını anında algılayıp bulutla eşleşme başlatan dinleyici (Sarı Uyarı Giderildi)
+        // ✨ SENIOR FIX: Kullanıcı giriş yaptığını anında algılayıp bulutla eşleşme başlatan dinleyici
         _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             if user != nil {
                 self?.syncWithCloud()
@@ -148,6 +163,27 @@ final class TaskViewModel: ObservableObject {
     private func deleteTaskFromCloud(id: String) {
         guard Auth.auth().currentUser != nil else { return }
         Task { try? await FirestoreManager.shared.deleteTask(id: id) }
+    }
+    
+    // MARK: - ODAK OTURUMU YÖNETİMİ (FOCUS SESSIONS) ✨
+    
+    private func loadFocusSessions() {
+        if let data = UserDefaults.standard.data(forKey: "yaver_focus_sessions_v1"),
+           let decoded = try? JSONDecoder().decode([FocusSession].self, from: data) {
+            self.focusSessions = decoded
+        }
+    }
+    
+    private func saveFocusSessions() {
+        if let encoded = try? JSONEncoder().encode(focusSessions) {
+            UserDefaults.standard.set(encoded, forKey: "yaver_focus_sessions_v1")
+        }
+    }
+    
+    /// Pomodoro sayacı başarıyla bittiğinde çağrılır
+    func addFocusSession(minutes: Int) {
+        let newSession = FocusSession(date: Date(), durationMinutes: minutes)
+        focusSessions.append(newSession)
     }
     
     // MARK: - Veri Yükleme & Doğrulama (Self-Healing)

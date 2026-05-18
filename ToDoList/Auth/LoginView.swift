@@ -9,7 +9,7 @@ struct LoginView: View {
     @Environment(\.colorScheme) var colorScheme
     
     // ✨ YENİ: Az önce yazdığımız Kimlik Doğrulama Motorunu (AuthManager) bu sayfaya bağlıyoruz
-    @StateObject private var authManager = AuthManager.shared
+    @ObservedObject private var authManager = AuthManager.shared
     
     var body: some View {
         VStack(spacing: 30) {
@@ -38,32 +38,38 @@ struct LoginView: View {
             // ALT KISIM: Giriş Butonları
             VStack(spacing: 16) {
                 
-                // 1. APPLE İLE GİRİŞ BUTONU (Apple'ın resmi butonu)
-                SignInWithAppleButton(.signIn) { request in
-                    // ✨ Motorun 1. Aşamasını Tetikle (Şifreleme/Nonce oluşturma)
-                    authManager.handleAppleRequest(request)
-                } onCompletion: { result in
-                    // ✨ Motorun 2. Aşamasını Tetikle (Firebase'e bağlanma)
+                // 1. APPLE İLE GİRİŞ BUTONU (Özel Tasarım ve Ortak Motor)
+                Button(action: {
                     Task {
                         do {
-                            try await authManager.handleAppleCompletion(result)
+                            // ✨ SENIOR FIX: Artık yeni ortak motorumuzu (signInWithApple) kullanıyoruz!
+                            try await authManager.signInWithApple()
                             dismiss() // Başarılı olursa ekranı kapat ve geri dön
                         } catch {
                             print("Apple Giriş Hatası: \(error.localizedDescription)")
                         }
                     }
+                }) {
+                    HStack {
+                        Image(systemName: "applelogo")
+                            .font(.title2)
+                        Text("Apple ile Devam Et")
+                            .font(.system(size: 17, weight: .semibold))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 55)
+                    // Aydınlık/Karanlık moda göre Apple standart renkleri
+                    .background(colorScheme == .dark ? Color.white : Color.black)
+                    .foregroundColor(colorScheme == .dark ? Color.black : Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                // ✨ SENIOR FIX 2: appearance.isDarkMode yerine colorScheme kullandık
-                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
-                .frame(height: 55)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
                 
                 // 2. GOOGLE İLE GİRİŞ BUTONU (Özel Tasarım)
                 Button(action: {
                     // ✨ Motoru Tetikle (Safari/Google ekranını aç ve Firebase'e bağlan)
                     Task {
                         do {
-                            try await authManager.signInWithGoogle()
+                            try await AuthManager.shared.signInWithGoogle()
                             dismiss() // Başarılı olursa ekranı kapat
                         } catch {
                             print("Google Giriş Hatası: \(error.localizedDescription)")

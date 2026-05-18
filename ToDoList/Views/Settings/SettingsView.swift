@@ -3,8 +3,9 @@ import PhotosUI
 import FirebaseAuth
 
 /// Uygulamanın kişiselleştirme ve ayarlar merkezi.
-/// Senior Notu: Profil düzenleme (Kamera, Galeri, Emoji, İsim değiştirme) işlemleri
-/// UI çakışmalarını engellemek amacıyla ProfileView'dan buraya taşınmıştır.
+/// Senior Notu: Düzen (Kompakt/Rahat) ayarı kaldırılarak sadeleştirildi.
+/// Apple HIG standartlarına uygun olarak Çıkış Yap butonu en alta taşındı ve
+/// Bulut statüsü Premium bir görünüme kavuşturuldu.
 struct SettingsView: View {
     // MARK: - Properties
     @ObservedObject var viewModel: SettingsViewModel
@@ -15,7 +16,7 @@ struct SettingsView: View {
     // Sidebar'ı açmak için dışarıdan gelen tetikleyici
     var onMenuTap: () -> Void
     
-    // MARK: - Profil Düzenleme State'leri (AppStorage & Local)
+    // MARK: - Profil Düzenleme State'leri
     @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
     @AppStorage("userAvatarID") private var userAvatarID: String = ""
     @AppStorage("userAvatarEmoji") private var userAvatarEmoji: String = ""
@@ -30,50 +31,36 @@ struct SettingsView: View {
     @State private var tempEmoji = ""
     @State private var selectedAvatarItem: PhotosPickerItem? = nil
     
-    // ✨ YENİ: Giriş (Login) ekranı tetikleyicisi
     @State private var showingLoginSheet = false
     
     var body: some View {
         NavigationStack {
             Form {
-                // ✨ 0. BULUT YEDEKLEME VE HESAP
+                // ✨ 0. BULUT YEDEKLEME VE HESAP (Premium iOS Standardı)
                 Section {
-                    if let user = authManager.userSession {
-                        // 🟢 GİRİŞ YAPILMIŞ DURUM (LOGGED IN)
-                        HStack(spacing: 15) {
-                            Image(systemName: "checkmark.icloud.fill")
-                                .font(.system(size: 30))
-                                .foregroundColor(.green) // Giriş başarılı rengi
+                    if authManager.userSession != nil {
+                        // 🟢 GİRİŞ YAPILMIŞ DURUM (Apple ID Tarzı)
+                        HStack(spacing: 16) {
+                            ZStack {
+                                Circle()
+                                    .fill(appearance.accentColor.opacity(0.15))
+                                    .frame(width: 48, height: 48)
+                                
+                                Image(systemName: "checkmark.icloud.fill")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(appearance.accentColor)
+                            }
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(user.displayName ?? "Bulut Kullanıcısı")
+                                Text(userName)
                                     .font(.headline)
                                     .foregroundColor(.primary)
-                                Text(user.email ?? "Email gizli")
+                                
+                                Text("Bulut Senkronizasyonu Aktif")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                    .lineLimit(1)
                             }
                             Spacer()
-                            
-                            // Çıkış Yap Butonu
-                            Button(action: {
-                                HapticManager.shared.triggerMediumImpact()
-                                do {
-                                    try authManager.signOut()
-                                } catch {
-                                    print("Çıkış hatası: \(error.localizedDescription)")
-                                }
-                            }) {
-                                Text("Çıkış Yap")
-                                    .font(.caption.bold())
-                                    .foregroundColor(.red)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.red.opacity(0.1))
-                                    .clipShape(Capsule())
-                            }
-                            .buttonStyle(.plain)
                         }
                         .padding(.vertical, 4)
                         
@@ -109,25 +96,22 @@ struct SettingsView: View {
                 }
                 .listRowBackground(Color.primary.opacity(0.03))
                 
-                // ✨ 1. PROFİL AYARLARI (ProfileView'dan Taşındı)
+                // ✨ 1. PROFİL AYARLARI
                 Section {
-                    // Profil Fotoğrafını Değiştir Butonu
+                    // Profil Fotoğrafını Değiştir
                     Button(action: {
                         HapticManager.shared.triggerLightImpact()
                         showingAvatarDialog = true
                     }) {
                         HStack(spacing: 16) {
-                            // Avatarı Settings'te gösterirken üstüne tıklama çakışmasın diye 'showAura: false'
-                            // ve .allowsHitTesting(false) ile içindeki tam ekran (Instagram) efektini kilitledik!
                             AvatarView(size: 36, showAura: false)
                                 .allowsHitTesting(false)
                             
                             Text("Profil Fotoğrafını Değiştir")
                                 .font(.system(size: 16, weight: .medium, design: .rounded))
-                                .foregroundColor(.primary) // Adaptive
+                                .foregroundColor(.primary)
                             
                             Spacer()
-                            
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(.secondary)
@@ -136,7 +120,7 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.plain)
                     
-                    // İsmi Değiştir Butonu
+                    // İsmi Değiştir
                     Button(action: {
                         tempUserName = userName
                         showingNameEditAlert = true
@@ -152,36 +136,71 @@ struct SettingsView: View {
                     .buttonStyle(.plain)
                     
                 } header: {
-                    Text("PROFİL AYARLARI")
-                        .font(.caption.bold())
+                    Text("PROFİL AYARLARI").font(.caption.bold())
                 }
                 .listRowBackground(Color.primary.opacity(0.03))
                 
-                // 2. GÖRÜNÜM AYARLARI (Mevcut)
-                AppearanceSettingsSection()
-                    .listRowBackground(Color.primary.opacity(0.03))
+                // ✨ 2. TEMA RENGİ (Eski dosyadan kurtarılıp buraya gömüldü)
+                Section {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 16) {
+                            ForEach(Theme.allCases) { theme in
+                                Button {
+                                    HapticManager.shared.triggerSelection()
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                                        appearance.mainTheme = theme
+                                    }
+                                } label: {
+                                    ZStack {
+                                        Circle()
+                                            .fill(theme.mainColor)
+                                            .frame(width: 44, height: 44)
+                                            .shadow(color: theme.mainColor.opacity(0.3), radius: 5, x: 0, y: 3)
+                                        
+                                        if appearance.mainTheme == theme {
+                                            Circle().stroke(Color.primary.opacity(0.8), lineWidth: 2)
+                                                .frame(width: 52, height: 52)
+                                            
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 14, weight: .black))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .scaleEffect(appearance.mainTheme == theme ? 1.1 : 1.0)
+                                .animation(.spring(response: 0.3, dampingFraction: 0.6), value: appearance.mainTheme)
+                            }
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 20)
+                    }
+                    .listRowInsets(EdgeInsets()) // Kenardan kenara tam sığması için
+                } header: {
+                    Text("TEMA RENGİ").font(.caption.bold())
+                }
+                .listRowBackground(Color.primary.opacity(0.03))
                 
-                // 3. SİSTEM VE DİL AYARLARI (Mevcut)
+                // ✨ 3. SİSTEM & DİL
                 Section {
                     Picker("Uygulama Dili", selection: $viewModel.selectedLanguage) {
                         Text("Türkçe").tag("tr")
                         Text("English").tag("en")
-                        // Diğer diller eklenebilir
                     }
-                    .tint(appearance.accentColor) // Seçici rengi temaya bağlandı
+                    .tint(appearance.accentColor)
                 } header: {
-                    Text("SİSTEM & DİL")
-                        .font(.caption.bold())
+                    Text("SİSTEM & DİL").font(.caption.bold())
                 }
                 .listRowBackground(Color.primary.opacity(0.03))
                 
-                // 4. UYGULAMA BİLGİLERİ / HAKKINDA (Mevcut)
+                // ✨ 4. HAKKINDA
                 Section {
                     SettingsOptionRow(
                         icon: "info.circle.fill",
                         title: "Versiyon",
                         color: appearance.accentColor,
-                        detail: "\(viewModel.fullVersionString) (Pro)"
+                        // ✨ SENIOR FIX: Karmaşık yapı silindi, sadece Apple HIG standartlarına uygun "1.0" tarzı ana sürüm numarası bırakıldı.
+                        detail: viewModel.appVersion
                     )
                     
                     SettingsOptionRow(
@@ -191,17 +210,34 @@ struct SettingsView: View {
                         detail: "Kopanzi"
                     )
                 } header: {
-                    Text("HAKKINDA")
-                        .font(.caption.bold())
+                    Text("HAKKINDA").font(.caption.bold())
                 }
                 .listRowBackground(Color.primary.opacity(0.03))
+                
+                // ✨ 5. ÇIKIŞ YAP (Sadece giriş yapıldıysa görünür)
+                if authManager.userSession != nil {
+                    Section {
+                        Button(action: {
+                            HapticManager.shared.triggerMediumImpact()
+                            do {
+                                try authManager.signOut()
+                            } catch {
+                                print("Çıkış hatası: \(error.localizedDescription)")
+                            }
+                        }) {
+                            Text("Hesaptan Çıkış Yap")
+                                .font(.body.weight(.semibold))
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                        }
+                    }
+                    .listRowBackground(Color.primary.opacity(0.03))
+                }
             }
             .navigationTitle("Ayarlar")
             .navigationBarTitleDisplayMode(.inline)
-            // Alt katmandaki Mesh Gradient'i ortaya çıkarır
             .scrollContentBackground(.hidden)
             .toolbar {
-                // 🍔 SOL: Menü Butonu
                 ToolbarItem(placement: .topBarLeading) {
                     Button(action: {
                         HapticManager.shared.triggerLightImpact()
@@ -214,7 +250,8 @@ struct SettingsView: View {
                     }
                 }
             }
-            // MARK: - Modals ve Düzenleme Pencereleri
+            
+            // MARK: - Modals
             .confirmationDialog("Profil Fotoğrafı", isPresented: $showingAvatarDialog, titleVisibility: .visible) {
                 Button("Kameradan Çek") { triggerCameraSafe() }
                 Button("Galeriden Seç") { showGalleryForAvatar = true }
@@ -259,7 +296,6 @@ struct SettingsView: View {
             } message: {
                 Text("Profilinde ve asistanında görünmesini istediğin ismi gir.")
             }
-            // ✨ YENİ: Login (Auth) Ekranı
             .sheet(isPresented: $showingLoginSheet) {
                 LoginView()
             }
@@ -271,7 +307,6 @@ struct SettingsView: View {
 private extension SettingsView {
     
     func triggerCameraSafe() {
-        // Kamerayı güvenle tetikler, menü/sheet çakışmalarını önler
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             showCameraForAvatar = true
         }
@@ -307,14 +342,4 @@ private extension SettingsView {
         userAvatarEmoji = ""
         HapticManager.shared.triggerMediumImpact()
     }
-}
-
-// MARK: - Preview
-#Preview {
-    SettingsView(
-        viewModel: SettingsViewModel(),
-        taskVM: TaskViewModel(),
-        onMenuTap: {}
-    )
-    .environmentObject(AppearanceManager.shared)
 }
