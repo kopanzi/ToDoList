@@ -4,9 +4,8 @@ import Combine
 import Charts
 
 /// İstatistik ekranı için ham görev verilerini işleyip grafik formatına getiren beyin.
-/// Senior Notu: O(N*M) karmaşıklığındaki (maliyetli) döngüler, O(N) Dictionary (Sözlük)
-/// haritalamasına dönüştürülerek binlerce görevde bile sıfır gecikme (Lag-free) sağlanmıştır.
-/// UI güncellemeleri için @MainActor garantisi eklenmiştir.
+/// Senior Notu: Çöp kutusu veya silinmiş görevlerden bağımsız, tamamlanmış tüm görevlerin
+/// tarihsel verisini koruyan 'Data Integrity' (Veri Bütünlüğü) odaklı Analytics Log yapısına geçilmiştir.
 @MainActor
 final class StatisticsViewModel: ObservableObject {
     
@@ -32,7 +31,15 @@ final class StatisticsViewModel: ObservableObject {
         let color: Color
     }
     
-    // Zaman Filtresi Seçenekleri (Kategori, Odak, Yüzde ve Zirve Saat Analizleri İçin)
+    // ✨ YENİ: Ölümsüz Analitik Kaydı Şablonu
+    // Görevler diskten tamamen silinse bile istatistik grafikleri için bu hafif veri tutulur.
+    struct AnalyticsTask: Codable, Equatable {
+        let id: String
+        let category: String
+        let completedAt: Date
+    }
+    
+    // Zaman Filtresi Seçenekleri
     enum TimeFilter: String, CaseIterable, Identifiable {
         case daily = "Bugün"
         case weekly = "Bu Hafta"
@@ -49,35 +56,29 @@ final class StatisticsViewModel: ObservableObject {
     @Published var procrastinationData: [ProcrastinationData] = []
     @Published var categoryDistribution: [CategoryData] = []
     
-    // Geriye dönük uyumluluk için eski değişkenleri de beslemeye devam ediyoruz
     @Published var totalFocusMinutes: Int = 0
     @Published var averageCompletionTime: String = "--:--"
     
-    // Profildeki 4'lü istatistik verisini buraya taşıdık
     @Published var userStats: UserStats = .empty
     
-    // MARK: - ✨ DİNAMİK FİLTRE MOTORLARI (Bento Box İçin)
+    // MARK: - DİNAMİK FİLTRE MOTORLARI
     
-    // 1. Bitirme Yüzdesi Filtresi
     @Published var completionRateString: String = "%0"
     @Published var completionRateFilter: TimeFilter = .daily {
         didSet { updateCompletionRate() }
     }
     
-    // 2. Zirve Saat Filtresi
     @Published var peakTimeString: String = "--:--"
     @Published var peakTimeFilter: TimeFilter = .daily {
         didSet { updatePeakTime() }
     }
     
-    // 3. Odaklanılan Gerçek Süre Filtresi
     @Published var focusTimeString: String = "0 Dk"
     @Published var focusTimeFilter: TimeFilter = .daily {
         didSet { updateFocusTime() }
     }
     
-    // 4. Kategori Grafiği Filtresi
-    @Published var categoryTimeFilter: TimeFilter = .allTime {
+    @Published var categoryTimeFilter: TimeFilter = .daily {
         didSet { updateCategoryDistribution() }
     }
     
@@ -87,69 +88,115 @@ final class StatisticsViewModel: ObservableObject {
     private var storedCompletedTasks: [TaskModel] = []
     private var storedFocusSessions: [FocusSession] = []
     
+    // ✨ ÖLÜMSÜZ ANALİTİK HAFIZASI
+    private let analyticsStorageKey = "yaver_analytics_history_v1"
+    private var historicalTasks: [String: AnalyticsTask] = [:]
+    
+    // MARK: - Init
+    init() {
+        loadHistoricalTasks()
+    }
+    
     // MARK: - Core Logic
     
-    /// TaskViewModel'den gelen aktif, tamamlanmış ve arşivlenmiş görevleri analiz eder.
     func processTasks(activeTasks: [TaskModel], archivedTasks: [TaskModel], lifetimeAdded: Int, lifetimeCompleted: Int) {
         let allTasks = activeTasks + archivedTasks
         let completedTasks = allTasks.filter { $0.isCompleted }
         
-        // Hafızadaki önbelleği güncelle (Filtreler değiştikçe hızlıca hesaplama yapabilmek için)
         self.storedActiveTasks = activeTasks
         self.storedCompletedTasks = completedTasks
         
-        // Genel temel verileri hesapla (Seri - Streak takibi vb. eski özellikler bozulmasın diye)
+        // ✨ ANALİTİK SENKRONİZASYONU: Görevlerin silinmez geçmişini güncelle
+        syncAnalyticsLog(with: allTasks)
+        
         self.userStats = UserStatsService.shared.calculateStats(from: allTasks)
         
-        // Filtreli dinamik bento kutusu hesaplamalarını tetikle
         updateCompletionRate()
         updatePeakTime()
         
-        // Grafikler için Data Üretimi (Eski işleyişle %100 uyumlu)
         self.heatmapData = generateHeatmapData(from: completedTasks)
         self.weeklyData = generateWeeklyData(from: completedTasks)
         self.procrastinationData = generateProcrastinationData(from: allTasks)
         
-        // Kategori Dağılımını Güncelle
+        // ✨ Kategori grafiği artık ölümsüz hafızadan (historicalTasks) çizilir
         updateCategoryDistribution()
         
-        // Hassas Ortalama Zaman hesabı (Eski özellik)
         calculateAverageTime(from: completedTasks)
     }
     
-    /// Odak sayacı bittiğinde tetiklenen süre işleme motoru.
     func processFocusSessions(_ sessions: [FocusSession]) {
         self.storedFocusSessions = sessions
         updateFocusTime()
     }
     
-    // MARK: - ✨ REAL-TIME FILTER ENGINES (Matematiksel Filtre Hesaplayıcıları)
+    // MARK: - ✨ ÖLÜMSÜZ ANALİTİK MOTORU (Append-Only Log)
     
-    /// 📏 1. Bitirme Yüzdesi Hesaplama Motoru (Daily Momentum & Denominator Problem Fix)
+    private func loadHistoricalTasks() {
+        if let data = UserDefaults.standard.data(forKey: analyticsStorageKey),
+           let decoded = try? JSONDecoder().decode([String: AnalyticsTask].self, from: data) {
+            self.historicalTasks = decoded
+        }
+    }
+    
+    private func saveHistoricalTasks() {
+        if let encoded = try? JSONEncoder().encode(historicalTasks) {
+            UserDefaults.standard.set(encoded, forKey: analyticsStorageKey)
+        }
+    }
+    
+    private func syncAnalyticsLog(with allTasks: [TaskModel]) {
+        var isChanged = false
+        
+        for task in allTasks {
+            if !task.isCompleted {
+                // Eğer kullanıcı tiki geri aldıysa (Uncheck), analitikten de sil!
+                if historicalTasks[task.id] != nil {
+                    historicalTasks.removeValue(forKey: task.id)
+                    isChanged = true
+                }
+            } else {
+                // Görev tamamlandıysa analitik loguna kaydet
+                let cat = task.category?.rawValue ?? "Diğer"
+                let date = task.completedAt ?? task.createdAt
+                
+                if let existing = historicalTasks[task.id] {
+                    // Veride değişim varsa güncelle
+                    if existing.category != cat || existing.completedAt != date {
+                        historicalTasks[task.id] = AnalyticsTask(id: task.id, category: cat, completedAt: date)
+                        isChanged = true
+                    }
+                } else {
+                    // Yeni tamamlanmış görev
+                    historicalTasks[task.id] = AnalyticsTask(id: task.id, category: cat, completedAt: date)
+                    isChanged = true
+                }
+            }
+        }
+        
+        // Not: Çöp kutusundan kalıcı olarak silinen görevler 'allTasks' içinde gelmez.
+        // Bu yüzden yukarıdaki döngüye girmezler ve 'historicalTasks' içinde SONSUZA KADAR kalırlar!
+        
+        if isChanged {
+            saveHistoricalTasks()
+        }
+    }
+    
+    // MARK: - REAL-TIME FILTER ENGINES
+    
     private func updateCompletionRate() {
         let now = Date()
         let calendar = Calendar.current
         
-        // Şu an masada yapmayı beklediğin (henüz tamamlanmamış) aktif görevler
         let pendingCount = storedActiveTasks.filter { !$0.isCompleted }.count
         
-        // Seçilen zaman filtresine uyan tamamlanmış görevlerin sayısı
         let filteredCompletedCount = storedCompletedTasks.filter { task in
             let date = task.completedAt ?? task.createdAt
             switch completionRateFilter {
-            case .daily:
-                return calendar.isDateInToday(date)
-            case .weekly:
-                guard let past = calendar.date(byAdding: .day, value: -7, to: now) else { return true }
-                return date >= past
-            case .monthly:
-                guard let past = calendar.date(byAdding: .day, value: -30, to: now) else { return true }
-                return date >= past
-            case .yearly:
-                guard let past = calendar.date(byAdding: .year, value: -1, to: now) else { return true }
-                return date >= past
-            case .allTime:
-                return true
+            case .daily: return calendar.isDateInToday(date)
+            case .weekly: guard let past = calendar.date(byAdding: .day, value: -7, to: now) else { return true }; return date >= past
+            case .monthly: guard let past = calendar.date(byAdding: .day, value: -30, to: now) else { return true }; return date >= past
+            case .yearly: guard let past = calendar.date(byAdding: .year, value: -1, to: now) else { return true }; return date >= past
+            case .allTime: return true
             }
         }.count
         
@@ -158,39 +205,28 @@ final class StatisticsViewModel: ObservableObject {
         if total > 0 {
             let rate = Int((Double(filteredCompletedCount) / Double(total)) * 100)
             self.completionRateString = "%\(rate)"
-            self.userStats.completionRate = rate // Profil uyumluluğu için
+            self.userStats.completionRate = rate
         } else {
             self.completionRateString = "%0"
             self.userStats.completionRate = 0
         }
     }
     
-    /// ⏰ 2. Zirve Saat Hesaplama Motoru (Precision Mode/Clustering Algorithm)
     private func updatePeakTime() {
         let now = Date()
         let calendar = Calendar.current
         
-        // Seçilen zaman filtresine uyan tamamlanmış görevleri al
         let filteredCompleted = storedCompletedTasks.filter { task in
             let date = task.completedAt ?? task.createdAt
             switch peakTimeFilter {
-            case .daily:
-                return calendar.isDateInToday(date)
-            case .weekly:
-                guard let past = calendar.date(byAdding: .day, value: -7, to: now) else { return true }
-                return date >= past
-            case .monthly:
-                guard let past = calendar.date(byAdding: .day, value: -30, to: now) else { return true }
-                return date >= past
-            case .yearly:
-                guard let past = calendar.date(byAdding: .year, value: -1, to: now) else { return true }
-                return date >= past
-            case .allTime:
-                return true
+            case .daily: return calendar.isDateInToday(date)
+            case .weekly: guard let past = calendar.date(byAdding: .day, value: -7, to: now) else { return true }; return date >= past
+            case .monthly: guard let past = calendar.date(byAdding: .day, value: -30, to: now) else { return true }; return date >= past
+            case .yearly: guard let past = calendar.date(byAdding: .year, value: -1, to: now) else { return true }; return date >= past
+            case .allTime: return true
             }
         }
         
-        // Saat bazında gruplama yapıp en çok tekrarlananı (Mod) bul
         var hourCounts: [Int: Int] = [:]
         for task in filteredCompleted {
             let date = task.completedAt ?? task.createdAt
@@ -200,20 +236,17 @@ final class StatisticsViewModel: ObservableObject {
         
         if let bestHour = hourCounts.max(by: { $0.value < $1.value })?.key {
             self.peakTimeString = String(format: "%02d:00", bestHour)
-            self.userStats.efficiencyTime = self.peakTimeString // Profil uyumluluğu için
+            self.userStats.efficiencyTime = self.peakTimeString
         } else {
-            // Eğer o gün/dönem hiç görev bitmediyse temiz bir görünüm ver
             self.peakTimeString = "--:--"
             self.userStats.efficiencyTime = "--:--"
         }
     }
     
-    /// ⏳ 3. Odaklanılan Gerçek Süre Hesaplama Motoru (Real Focus Time Fix)
     private func updateFocusTime() {
         let now = Date()
         let calendar = Calendar.current
         
-        // Seçilen zaman filtresine uyan odak oturumlarını filtrele
         let filteredSessions = storedFocusSessions.filter { session in
             switch focusTimeFilter {
             case .daily: return calendar.isDateInToday(session.date)
@@ -232,41 +265,45 @@ final class StatisticsViewModel: ObservableObject {
         
         if hours > 0 {
             self.focusTimeString = "\(hours)sa \(mins)dk"
-            self.userStats.timeSaved = "\(hours)sa \(mins)dk" // Eski timeSaved Bento kutusunu besler
+            self.userStats.timeSaved = "\(hours)sa \(mins)dk"
         } else {
             self.focusTimeString = "\(mins) Dk"
-            self.userStats.timeSaved = "\(mins) Dk" // Eski timeSaved Bento kutusunu besler
+            self.userStats.timeSaved = "\(mins) Dk"
         }
     }
     
-    /// 📊 4. Kategori Grafiği Zaman Filtresi İşleyicisi
+    // ✨ SENIOR YENİLİK: Kategori Grafiği Artık Ölümsüz Veriden Okur!
     private func updateCategoryDistribution() {
         let calendar = Calendar.current
         let now = Date()
         
-        let filteredTasks = storedCompletedTasks.filter { task in
-            let date = task.completedAt ?? task.createdAt
+        // Artık fiziksel dosyalara değil, ölümsüz analitik hafızasına bakıyoruz.
+        let filteredAnalytics = historicalTasks.values.filter { task in
+            let date = task.completedAt
             
             switch categoryTimeFilter {
             case .daily:
                 return calendar.isDateInToday(date)
             case .weekly:
-                guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: now) else { return true }
-                return date >= weekAgo
+                guard let past = calendar.date(byAdding: .day, value: -7, to: now) else { return true }
+                return date >= past
             case .monthly:
-                guard let monthAgo = calendar.date(byAdding: .day, value: -30, to: now) else { return true }
-                return date >= monthAgo
+                guard let past = calendar.date(byAdding: .day, value: -30, to: now) else { return true }
+                return date >= past
             case .yearly:
-                guard let yearAgo = calendar.date(byAdding: .year, value: -1, to: now) else { return true }
-                return date >= yearAgo
+                guard let past = calendar.date(byAdding: .year, value: -1, to: now) else { return true }
+                return date >= past
             case .allTime:
                 return true
             }
         }
-        self.categoryDistribution = generateCategoryData(from: filteredTasks)
+        
+        // Yeni kullanıcılar ve veri kaybı sorunu yaşanmayacağı için yamayı (Reconciliation) kaldırdık.
+        // Artık sadece saf ve geçerli görev verileri yansıtılacak.
+        self.categoryDistribution = generateCategoryData(from: Array(filteredAnalytics))
     }
     
-    // MARK: - High-Performance Generators (Grafik Veri Üreticileri)
+    // MARK: - High-Performance Generators
     
     private func generateProcrastinationData(from allTasks: [TaskModel]) -> [ProcrastinationData] {
         let calendar = Calendar.current
@@ -329,13 +366,21 @@ final class StatisticsViewModel: ObservableObject {
         }.reversed()
     }
     
-    private func generateCategoryData(from tasks: [TaskModel]) -> [CategoryData] {
-        let groups = Dictionary(grouping: tasks, by: { $0.category?.rawValue ?? "Diğer" })
+    // ✨ SENIOR YENİLİK: Sadece analitik geçmişini kullanarak grafik datasını üretir
+    private func generateCategoryData(from analyticsTasks: [AnalyticsTask]) -> [CategoryData] {
+        // Hatalı veya boş isme sahip veriler elenir
+        let validTasks = analyticsTasks.filter { !$0.category.isEmpty }
+        
+        let groups = Dictionary(grouping: validTasks, by: { $0.category })
+        
         return groups.map { (key, value) in
-            CategoryData(
+            // Kategori enum'ından rengini güvenle çekiyoruz
+            let categoryColor = Category(rawValue: key)?.color ?? .gray
+            
+            return CategoryData(
                 category: key.uppercased(),
                 count: value.count,
-                color: value.first?.category?.color ?? .gray
+                color: categoryColor
             )
         }.sorted(by: { $0.count > $1.count })
     }
