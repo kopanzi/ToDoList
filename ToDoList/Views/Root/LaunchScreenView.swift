@@ -1,10 +1,9 @@
 import SwiftUI
 
 /// Uygulamanın ilk açılışında kullanıcıyı karşılayan Premium Launch Screen.
-/// Senior Notu: Sabit siyah/beyaz renkler kaldırılarak Aydınlık/Karanlık mod (Adaptive UI)
-/// ve Tema Motoru (AppearanceManager) entegrasyonu sağlandı.
+/// Sio: To Do List & Tasks markasına özel olarak güncellendi.
 struct LaunchScreenView: View {
-    // ✨ SENIOR FIX: Temayı güvenli bir şekilde (Singleton üzerinden) dinliyoruz
+    // Temayı güvenli bir şekilde (Singleton üzerinden) dinliyoruz
     @ObservedObject private var appearance = AppearanceManager.shared
     
     @State private var animasyonBasladi = false
@@ -13,42 +12,52 @@ struct LaunchScreenView: View {
     var body: some View {
         ZStack {
             // 1. ARKA PLAN: Adaptive Sistem Arka Planı
-            // Cihaz aydınlık moddaysa beyaz, karanlık moddaysa siyah/koyu gri olur.
             Color(uiColor: .systemBackground)
                 .ignoresSafeArea()
             
-            // ✨ YENİ: Arka planda temanın ruhunu yansıtan, nefes alan bir parlama (Aura)
+            // ✨ SİO AURA: Arka planda temanın ruhunu yansıtan, nefes alan bir parlama
             Circle()
                 .fill(appearance.accentColor.opacity(0.15))
-                .frame(width: 300, height: 300)
-                .blur(radius: 60)
+                .frame(width: 320, height: 320)
+                .blur(radius: 65)
                 .scaleEffect(animasyonBasladi ? 1.2 : 0.8)
             
-            VStack(spacing: 20) {
-                // 2. LOGO: Tematik ve Adaptive
+            VStack(spacing: 24) {
+                // 2. YENİ SİO LOGOSU
                 ZStack {
                     // Arkadaki tema renkli hafif parlama
                     Circle()
                         .fill(appearance.accentColor.opacity(0.3))
-                        .frame(width: 90, height: 90)
-                        .blur(radius: 20)
+                        .frame(width: 130, height: 130)
+                        .blur(radius: 25)
                         .opacity(animasyonBasladi ? 1.0 : 0.0)
                     
-                    Image(systemName: "list.bullet.circle.fill")
-                        .font(.system(size: 100))
-                        // ✨ SENIOR FIX: .white yerine .primary kullanıldı (Mod uyumlu)
-                        .foregroundColor(.primary)
+                    // Sio ikonu (Assets klasöründeki adı "SioLogo" olmalı)
+                    Image("SioLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 140, height: 140)
+                        // Görsel kare olduğu için köşelerini kusursuz iOS App ikonu formunda yuvarlatıyoruz
+                        .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
                         // İkona derinlik katan tema renkli gölge
-                        .shadow(color: appearance.accentColor.opacity(0.3), radius: 10, x: 0, y: 5)
+                        .shadow(color: appearance.accentColor.opacity(0.35), radius: 15, x: 0, y: 8)
                 }
                 
-                // 3. İSİM: YAVER (Premium Yazı)
-                Text("YAVER")
-                    .font(.system(size: 40, weight: .bold, design: .rounded))
-                    .tracking(8) // Harf aralarını biraz daha açarak "High-End" marka havası kattık
-                    .foregroundColor(.primary) // ✨ SENIOR FIX: Adaptive renk
-                    // Altında temanın rengiyle çok hafif bir yansıma
-                    .shadow(color: appearance.accentColor.opacity(0.4), radius: 5, x: 0, y: 3)
+                // 3. İSİM VE ALT BAŞLIK
+                VStack(spacing: 8) {
+                    Text("Sio")
+                        // Boyutu 72'ye çıkarıldı, ekranda devasa ve çok asil duracak
+                        .font(.system(size: 72, weight: .bold, design: .rounded))
+                        .tracking(4) // Tok ve "High-End" marka havası
+                        .foregroundColor(.primary)
+                        .shadow(color: appearance.accentColor.opacity(0.4), radius: 5, x: 0, y: 3)
+                    
+                    Text("To Do List & Tasks")
+                        // Alt başlık da orantılı olarak 18'e çıkarıldı
+                        .font(.system(size: 18, weight: .medium, design: .rounded))
+                        .tracking(2)
+                        .foregroundColor(.secondary)
+                }
             }
             // Animasyon: Hafifçe büyüyerek ekrana gelsin
             .scaleEffect(animasyonBasladi ? 1.0 : 0.85)

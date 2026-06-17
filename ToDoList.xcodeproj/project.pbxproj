@@ -512,7 +512,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ToDoList/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_CFBundleDisplayName = Sio;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Görevlerinizi takvime işlemek için izin gereklidir.";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Oluşturduğunuz görevleri Apple Takvime etkinlik olarak eklemek için gereklidir.";
@@ -557,7 +557,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ToDoList/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_CFBundleDisplayName = Sio;
 				INFOPLIST_KEY_LSApplicationCategoryType = "";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "Görevlerinizi takvime işlemek için izin gereklidir.";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "Oluşturduğunuz görevleri Apple Takvime etkinlik olarak eklemek için gereklidir.";

@@ -14,7 +14,7 @@ struct SidebarHeaderView: View {
     @EnvironmentObject var appearance: AppearanceManager
     
     // Kullanıcı adını anlık olarak cihaz hafızasından okuyoruz
-    @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
+    @AppStorage("userName") private var userName: String = "Sio Kullanıcısı"
     
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -102,7 +102,7 @@ struct SidebarHeaderView: View {
         
         VStack {
             SidebarHeaderView(
-                rankName: "Usta Yaver",
+                rankName: "Usta Sio",
                 rankIcon: "star.fill",
                 xp: 1250,
                 progress: 0.65

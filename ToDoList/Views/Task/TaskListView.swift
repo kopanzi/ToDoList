@@ -32,7 +32,7 @@ struct TaskListView: View {
     @State private var zenTaskToFocus: TaskModel? = nil
     @State private var zenMagnification: CGFloat = 1.0 // Pinch to zoom efekti için
     
-    @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
+    @AppStorage("userName") private var userName: String = "Sio Kullanıcısı"
     
     enum BottomTab { case home, schedule, stats, profile }
     

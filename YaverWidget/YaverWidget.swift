@@ -14,7 +14,7 @@ struct SimpleEntry: TimelineEntry {
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> SimpleEntry {
         // Önizleme verisi
-        let sampleTask = TaskModel(title: "Yaver Hazır", priority: .high, category: .personal, createdAt: Date(), isPrivate: false)
+        let sampleTask = TaskModel(title: "Sio Hazır", priority: .high, category: .personal, createdAt: Date(), isPrivate: false)
         return SimpleEntry(date: Date(), xp: 100, rankName: "Çırak", rankIcon: "hammer.fill", tasks: [sampleTask])
     }
 

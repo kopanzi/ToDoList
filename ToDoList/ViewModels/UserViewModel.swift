@@ -17,10 +17,10 @@ final class UserViewModel: ObservableObject {
     @Published var isLoadingInsight: Bool = false
     
     // Yaver'in verdiği son tavsiyeyi cihaz hafızasında tutarız
-    @AppStorage("lastAIInsight") private var savedAIInsight: String = "Performans verileriniz harika görünüyor! Yaver'den güncel bir tavsiye almak için sayfayı aşağı kaydırarak yenileyin."
+    @AppStorage("lastAIInsight") private var savedAIInsight: String = "Performans verileriniz harika görünüyor! Sio'dan güncel bir tavsiye almak için sayfayı aşağı kaydırarak yenileyin."
     
     // Kullanıcı adını anlık olarak cihaz hafızasından okuyoruz
-    @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
+    @AppStorage("userName") private var userName: String = "Sio Kullanıcısı"
     
     // MARK: - Private Dependencies
     private let taskVM: TaskViewModel
@@ -57,25 +57,21 @@ final class UserViewModel: ObservableObject {
     
     // MARK: - CLOUD SYNC (BULUT MOTORU) ✨
     
-    /// Giriş yapıldığında yerel rozetler ile buluttaki rozetleri akıllıca birleştirir.
     private func syncAchievementsWithCloud() {
         Task {
             do {
                 let cloudAchievements = try await FirestoreManager.shared.fetchAchievements()
                 
                 if cloudAchievements.isEmpty {
-                    // İlk Buluşma: Bulut boş ama telefonda kazanılmış rozetler var. Tümünü buluta yolla.
                     let unlockedCount = self.achievements.filter { $0.isUnlocked }.count
                     if unlockedCount > 0 {
                         try? await FirestoreManager.shared.saveAchievements(self.achievements)
                     }
                 } else {
-                    // Akıllı Birleştirme (Smart Merge): Buluttaki verilerle yereli birleştir
                     var merged = self.achievements
                     var hasChanges = false
                     
                     for cloudAch in cloudAchievements where cloudAch.isUnlocked {
-                        // Eğer bulutta rozet açıksa ve telefonda kilitliyse, telefondakini aç
                         if let index = merged.firstIndex(where: { $0.title == cloudAch.title }), !merged[index].isUnlocked {
                             merged[index].isUnlocked = true
                             merged[index].unlockedAt = cloudAch.unlockedAt
@@ -83,7 +79,6 @@ final class UserViewModel: ObservableObject {
                         }
                     }
                     
-                    // Eğer yerel veride değişiklik olduysa hem cihazı hem bulutu güncelle
                     if hasChanges {
                         self.achievements = merged
                         DataService.shared.saveAchievements(merged)

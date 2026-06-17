@@ -81,7 +81,7 @@ private extension StatisticsView {
             Text("İSTATİSTİKLER")
                 .font(.system(size: 10, weight: .black))
                 .tracking(2)
-                .foregroundColor(appearance.accentColor) // Tema Rengi
+                .foregroundColor(appearance.accentColor)
             
             Text("Üretkenlik Raporu")
                 .font(.system(size: 28, weight: .bold, design: .rounded))
@@ -96,7 +96,7 @@ private extension StatisticsView {
         let totalCount = taskVM.lifetimeAddedTasks
         
         return HStack(spacing: 16) {
-            // Sol Taraftaki Madalya İkonu
+            
             ZStack {
                 Circle()
                     .fill(appearance.accentColor.opacity(0.15))
@@ -109,7 +109,7 @@ private extension StatisticsView {
             
             // Sağ Taraftaki Dinamik Metin Alanı
             VStack(alignment: .leading, spacing: 6) {
-                Text("YAVER İLE YOLCULUĞUN")
+                Text("SIO İLE YOLCULUĞUN")
                     .font(.system(size: 10, weight: .black))
                     .foregroundColor(.secondary)
                     .tracking(1)

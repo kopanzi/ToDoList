@@ -17,7 +17,7 @@ struct SettingsView: View {
     var onMenuTap: () -> Void
     
     // MARK: - Profil Düzenleme State'leri
-    @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
+    @AppStorage("userName") private var userName: String = "Sio Kullanıcısı"
     @AppStorage("userAvatarID") private var userAvatarID: String = ""
     @AppStorage("userAvatarEmoji") private var userAvatarEmoji: String = ""
     

@@ -16,7 +16,7 @@ struct ProfileView: View {
     @State private var showingAllAchievements = false
     
     // Yalnızca okuma (Okunabilir) amaçlı isim
-    @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
+    @AppStorage("userName") private var userName: String = "Sİo Kullanıcısı"
     
     // MARK: - Initialization
     init(taskVM: TaskViewModel) {

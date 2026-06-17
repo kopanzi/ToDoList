@@ -33,18 +33,16 @@ final class AuthService {
     /// - Parameter reason: Kullanıcıya gösterilecek olan doğrulama nedeni (iOS tarafından ekranda basılır).
     /// - Returns: Doğrulama başarılı ise 'true', aksi halde hata fırlatır.
     func authenticate(reason: String) async throws -> Bool {
-        // ✨ SENIOR TIP: Her doğrulama için yeni bir context oluşturmak, önceki oturumun
-        // durum kalıntılarını temizler ve güvenliği artırır.
+        
         let context = LAContext()
         context.localizedFallbackTitle = "Şifre Kullan" // Biyometri başarısız olursa çıkacak yazı
         
         var error: NSError?
         
-        // 1. Politika Seçimi: deviceOwnerAuthentication biyometri + şifre desteği sağlar.
-        // Bu sayede yüzü maskeli veya parmağı ıslak olan kullanıcı uygulamadan dışlanmaz.
+        
         let policy: LAPolicy = .deviceOwnerAuthentication
         
-        // 2. Destek Kontrolü
+        
         guard context.canEvaluatePolicy(policy, error: &error) else {
             #if targetEnvironment(simulator)
             print("⚠️ Simülatörde geliştirici kolaylığı için doğrulama atlandı.")

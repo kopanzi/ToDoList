@@ -12,7 +12,7 @@ struct AvatarView: View {
     @EnvironmentObject var appearance: AppearanceManager
     
     // Cihaz hafızasındaki verileri anlık olarak dinler
-    @AppStorage("userName") private var userName: String = "Yaver Kullanıcısı"
+    @AppStorage("userName") private var userName: String = "Sio Kullanıcısı"
     @AppStorage("userAvatarID") private var userAvatarID: String = ""
     @AppStorage("userAvatarEmoji") private var userAvatarEmoji: String = ""
     @AppStorage("userXP") private var userXP: Int = 0 // Rütbe için XP dinleniyor

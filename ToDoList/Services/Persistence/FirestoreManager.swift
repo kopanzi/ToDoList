@@ -41,7 +41,7 @@ final class FirestoreManager {
         }
     }
     
-    // MARK: - 📝 NOTLAR (NOTES) ODASI
+
     
     private func notesCollection() throws -> CollectionReference {
         guard let userId = Auth.auth().currentUser?.uid else { throw URLError(.userAuthenticationRequired) }

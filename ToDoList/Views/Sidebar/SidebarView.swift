@@ -204,7 +204,7 @@ private extension SidebarView {
             .padding(.vertical, 5)
     }
     var footerInfo: some View {
-        Text("YAVER İLE HAYATI PLANLA")
+        Text("SIO İLE HAYATI PLANLA")
             .font(.system(size: 12, weight: .semibold, design: .monospaced))
             .foregroundColor(.secondary)
             // ✨ SENIOR FIX: Her yönden 24 px padding vermek yerine, yukarıdaki padding'i tıraşlayıp butona yer açtık.

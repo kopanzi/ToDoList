@@ -59,7 +59,7 @@ extension Achievement {
         ),
         Achievement(
             title: "AI Ustası",
-            description: "Bir görevin detaylarında 'Yaver AI ile Planla' özelliğini kullan.",
+            description: "Bir görevin detaylarında 'Sio AI ile Planla' özelliğini kullan.",
             iconName: "bolt.fill",
             hexColors: ["#0DF2CC", "#3B82F6"],
             isUnlocked: false,

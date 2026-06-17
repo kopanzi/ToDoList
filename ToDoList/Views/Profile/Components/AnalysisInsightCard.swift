@@ -32,7 +32,7 @@ struct AnalysisInsightCard: View {
                     .frame(width: 36, height: 36)
                     
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("YAVER ANALİZ MOTORU")
+                        Text("SIO ANALİZ MOTORU")
                             .font(.system(size: 11, weight: .black))
                             .tracking(0.5)
                             .foregroundColor(.primary) // ✨ Adaptive

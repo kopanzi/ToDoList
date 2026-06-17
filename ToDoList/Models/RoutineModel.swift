@@ -8,7 +8,7 @@ enum RoutineFrequency: String, Codable, CaseIterable {
     case month = "Ay"
 }
 
-/// Yaver'in "Görev Fabrikası".
+/// "Görev Fabrikası".
 struct RoutineModel: Identifiable, Codable, Equatable {
     let id: String
     

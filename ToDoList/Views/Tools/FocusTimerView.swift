@@ -213,7 +213,7 @@ private extension FocusTimerView {
             icon: "sparkles",
             iconColor: appearance.accentColor,
             title: "Seans Tamamlandı",
-            message: "Harika bir iş çıkardın kanka! Bu emek karşılıksız kalmaz; Yaver sana tam \(earnedXP) XP kazandırdı. Şimdi bir kahve molasını hak ettin.",
+            message: "Harika bir iş çıkardın kanka! Bu emek karşılıksız kalmaz; Sİo sana tam \(earnedXP) XP kazandırdı. Şimdi bir kahve molasını hak ettin.",
             primaryBtnTitle: "☕️ 5 Dakika Mola Ver",
             primaryBtnAction: { startBreakMode(minutes: 5) },
             secondaryBtnTitle: "Kapat",
