@@ -7,7 +7,7 @@ final class NotificationManager {
     static let shared = NotificationManager()
     
     private init() {}
-    
+     
     /// Kullanıcıdan bildirim izni ister.
     func requestAuthorization() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
